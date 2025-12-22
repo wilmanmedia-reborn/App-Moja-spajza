@@ -1,0 +1,7 @@
+{
+  "name": "Moja špajza - Inteligentná správa zásob",
+  "description": "Aplikácia na správu zásob trvanlivých potravín v domácnosti s AI asistentom pre recepty a nákupným zoznamom.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
