@@ -156,8 +156,8 @@ const App: React.FC = () => {
     setAiSuggestions("AI analyzuje vaše zásoby...");
     try {
       const suggestions = await getRecipeSuggestions(householdItems);
-      // Oprava: suggestions môže byť undefined, stav vyžaduje string | null
-      setAiSuggestions(suggestions || null);
+      // Oprava: Použitie ?? null namiesto || null pre presnejšiu typovú kompatibilitu s TSC
+      setAiSuggestions(suggestions ?? null);
     } catch (error) {
       console.error(error);
       setAiSuggestions("Nepodarilo sa získať nápady na recepty.");
