@@ -2,13 +2,6 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { FoodItem, Category } from "./types";
 
-// Explicitná deklarácia pre TSC, aby poznal objekt process.env
-declare const process: {
-  env: {
-    API_KEY: string;
-  };
-};
-
 /**
  * Pomocná funkcia na bezpečné parsovanie JSON z textu modelu.
  */
@@ -27,7 +20,9 @@ function safeJsonParse(text: string | undefined) {
  * Funkcia na získanie receptov zo zásob.
  */
 export async function getRecipeSuggestions(items: FoodItem[]): Promise<string | null> {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  // @ts-ignore - process.env je dostupný cez Vite define
+  const apiKey = process.env.API_KEY;
+  const ai = new GoogleGenAI({ apiKey });
   const stockInfo = items
     .filter(i => (i.currentQuantity / i.totalQuantity) > 0.1)
     .map(i => `${i.name} (${i.currentQuantity}${i.unit})`)
@@ -54,7 +49,9 @@ export async function getRecipeSuggestions(items: FoodItem[]): Promise<string | 
  * Funkcia na spracovanie textu alebo EAN kódu.
  */
 export async function parseSmartEntry(input: string, existingCategories: Category[]) {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  // @ts-ignore - process.env je dostupný cez Vite define
+  const apiKey = process.env.API_KEY;
+  const ai = new GoogleGenAI({ apiKey });
   const isBarcode = /^\d{8,14}$/.test(input.trim());
   
   const categoriesList = existingCategories.map(c => c.name).join(", ");
@@ -100,7 +97,9 @@ export async function parseSmartEntry(input: string, existingCategories: Categor
  * Funkcia na analýzu fotky.
  */
 export async function analyzeProductImage(base64Image: string, existingCategories: Category[]) {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  // @ts-ignore - process.env je dostupný cez Vite define
+  const apiKey = process.env.API_KEY;
+  const ai = new GoogleGenAI({ apiKey });
   const categoriesList = existingCategories.map(c => c.name).join(", ");
 
   try {
