@@ -23,6 +23,50 @@ export const ManageMetadataModal: React.FC<Props> = ({
 
   if (!isOpen) return null;
 
+  const handleExport = () => {
+    const data = {
+      items: JSON.parse(localStorage.getItem('pantry_items') || '[]'),
+      locations: locations,
+      categories: categories,
+      users: JSON.parse(localStorage.getItem('pantry_users') || '[]'),
+      shopping: JSON.parse(localStorage.getItem('pantry_shopping') || '[]')
+    };
+    const dataStr = JSON.stringify(data);
+    const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
+    
+    const exportFileDefaultName = `spajza_zaloha_${new Date().toISOString().split('T')[0]}.json`;
+    
+    const linkElement = document.createElement('a');
+    linkElement.setAttribute('href', dataUri);
+    linkElement.setAttribute('download', exportFileDefaultName);
+    linkElement.click();
+  };
+
+  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const importedData = JSON.parse(event.target?.result as string);
+        if (confirm('Importovaním dát sa prepíšu vaše aktuálne nastavenia v tomto zariadení. Pokračovať?')) {
+          if (importedData.items) localStorage.setItem('pantry_items', JSON.stringify(importedData.items));
+          if (importedData.locations) setLocations(importedData.locations);
+          if (importedData.categories) setCategories(importedData.categories);
+          if (importedData.users) localStorage.setItem('pantry_users', JSON.stringify(importedData.users));
+          if (importedData.shopping) localStorage.setItem('pantry_shopping', JSON.stringify(importedData.shopping));
+          
+          alert('Dáta boli úspešne importované! Aplikácia sa teraz obnoví.');
+          window.location.reload();
+        }
+      } catch (err) {
+        alert('Chyba pri čítaní súboru. Uistite sa, že ide o platnú zálohu Moja Špajza.');
+      }
+    };
+    reader.readAsText(file);
+  };
+
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newName.trim()) return;
@@ -77,63 +121,61 @@ export const ManageMetadataModal: React.FC<Props> = ({
           </button>
         </div>
 
-        <div className="p-4 bg-slate-100 dark:bg-slate-800/50 flex gap-2">
+        <div className="p-4 bg-slate-100 dark:bg-slate-800/50 flex gap-2 overflow-x-auto no-scrollbar">
           <button 
             onClick={() => setActiveSubTab('locations')}
-            className={`flex-1 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${activeSubTab === 'locations' ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-950 shadow-lg' : 'text-slate-500 dark:text-slate-400'}`}
+            className={`flex-1 min-w-[100px] py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${activeSubTab === 'locations' ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-950 shadow-lg' : 'text-slate-500 dark:text-slate-400'}`}
           >
             Lokality
           </button>
           <button 
             onClick={() => setActiveSubTab('categories')}
-            className={`flex-1 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${activeSubTab === 'categories' ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-950 shadow-lg' : 'text-slate-500 dark:text-slate-400'}`}
+            className={`flex-1 min-w-[100px] py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${activeSubTab === 'categories' ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-950 shadow-lg' : 'text-slate-500 dark:text-slate-400'}`}
           >
             Kategórie
           </button>
           <button 
             onClick={() => setActiveSubTab('household')}
-            className={`flex-1 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${activeSubTab === 'household' ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20' : 'text-slate-500 dark:text-slate-400'}`}
+            className={`flex-1 min-w-[100px] py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${activeSubTab === 'household' ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20' : 'text-slate-500 dark:text-slate-400'}`}
           >
-            Domácnosť
+            Synchronizácia
           </button>
         </div>
 
         <div className="p-8 max-h-[60vh] overflow-y-auto no-scrollbar">
           {activeSubTab === 'household' ? (
-            <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
-              <div className="bg-slate-50 dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-700 text-center">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Váš zdieľací kód</p>
-                <div className="text-4xl font-black text-emerald-600 dark:text-emerald-400 tracking-[0.2em]">
-                  {currentUser?.householdId}
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+              <div className="p-6 bg-slate-50 dark:bg-slate-800 rounded-[2rem] border border-slate-100 dark:border-slate-700">
+                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Záloha a prenos dát</h4>
+                <div className="grid grid-cols-1 gap-3">
+                  <button 
+                    onClick={handleExport}
+                    className="w-full py-4 bg-white dark:bg-slate-700 text-slate-900 dark:text-white font-black rounded-2xl text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 border border-slate-200 dark:border-slate-600 shadow-sm active:scale-95 transition-transform"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                    Exportovať do súboru
+                  </button>
+                  
+                  <label className="w-full py-4 bg-emerald-600 text-white font-black rounded-2xl text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 cursor-pointer active:scale-95 transition-transform">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                    Importovať zo súboru
+                    <input type="file" accept=".json" onChange={handleImport} className="hidden" />
+                  </label>
                 </div>
-                <p className="text-xs font-bold text-slate-500 dark:text-slate-400 mt-4 px-4">
-                  Zdieľajte tento kód s rodinnými príslušníkmi, aby mohli spravovať túto špajzu spoločne s vami.
+                <p className="text-[9px] font-bold text-slate-400 mt-4 text-center leading-relaxed">
+                  Exportujte dáta z prvého mobilu a importujte ich v druhom, aby ste mali rovnaký účet a zásoby.
                 </p>
               </div>
 
-              <form onSubmit={handleJoinHousehold} className="p-6 bg-indigo-50 dark:bg-indigo-950/20 rounded-[2rem] border-2 border-indigo-100 dark:border-indigo-900/50">
-                <h4 className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest mb-4">Pripojiť sa k inej domácnosti</h4>
-                <div className="flex gap-3">
-                  <input 
-                    type="text" 
-                    value={joinCode}
-                    onChange={e => setJoinCode(e.target.value)}
-                    placeholder="Zadajte kód..."
-                    maxLength={6}
-                    className="flex-1 px-5 py-3 bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-none rounded-2xl font-black uppercase tracking-widest outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                  <button 
-                    type="submit"
-                    className="px-6 py-3 bg-indigo-600 text-white font-black rounded-2xl active:scale-95 transition-all text-[10px] uppercase tracking-widest"
-                  >
-                    OK
-                  </button>
+              <div className="bg-slate-50 dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-700 text-center">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Zdieľací kód domácnosti</p>
+                <div className="text-4xl font-black text-emerald-600 dark:text-emerald-400 tracking-[0.2em]">
+                  {currentUser?.householdId}
                 </div>
-              </form>
+              </div>
             </div>
           ) : (
             <>
-              {/* List items */}
               <div className="space-y-3 mb-8">
                 {(activeSubTab === 'locations' ? locations : categories).map(item => (
                   <div key={item.id} className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 group">
@@ -151,7 +193,6 @@ export const ManageMetadataModal: React.FC<Props> = ({
                 ))}
               </div>
 
-              {/* Add new form */}
               <form onSubmit={handleAdd} className="p-6 bg-emerald-50 dark:bg-emerald-950/20 rounded-[2rem] border-2 border-emerald-100 dark:border-emerald-900/50">
                 <h4 className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest mb-4">Pridať novú {activeSubTab === 'locations' ? 'lokalitu' : 'kategóriu'}</h4>
                 <div className="flex gap-3">

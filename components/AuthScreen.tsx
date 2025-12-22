@@ -12,6 +12,7 @@ export const AuthScreen: React.FC<Props> = ({ onLogin }) => {
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [error, setError] = useState('');
+  const [imageError, setImageError] = useState(false);
 
   const handleAuth = (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,7 +30,7 @@ export const AuthScreen: React.FC<Props> = ({ onLogin }) => {
         id: Math.random().toString(36).substr(2, 9),
         name: name || 'Používateľ',
         email,
-        password, // V reálnej aplikácii by bolo hashované
+        password,
         householdId: Math.random().toString(36).substr(2, 6).toUpperCase()
       };
       
@@ -40,21 +41,31 @@ export const AuthScreen: React.FC<Props> = ({ onLogin }) => {
       if (user) {
         onLogin(user);
       } else {
-        setError('Nesprávny email alebo heslo.');
+        setError('Nesprávny email alebo heslo. Dáta sú uložené lokálne v tomto zariadení.');
       }
     }
   };
 
   return (
     <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 relative overflow-hidden">
-      {/* Background Decor */}
       <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-emerald-500/20 blur-[120px] rounded-full"></div>
       <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-indigo-500/20 blur-[120px] rounded-full"></div>
 
       <div className="w-full max-w-md bg-white/5 backdrop-blur-3xl border border-white/10 rounded-[3rem] p-8 sm:p-12 shadow-2xl relative z-10">
         <div className="text-center mb-10">
-          <div className="w-20 h-20 bg-emerald-600 rounded-[2rem] flex items-center justify-center text-4xl shadow-2xl shadow-emerald-600/30 mx-auto mb-6">
-            🥗
+          <div className="w-20 h-20 bg-emerald-600 rounded-[2rem] flex items-center justify-center text-4xl shadow-2xl shadow-emerald-600/30 mx-auto mb-6 overflow-hidden relative group">
+            {/* Fallback Emoji */}
+            <span className="absolute inset-0 flex items-center justify-center">🥗</span>
+            
+            {/* Actual Logo Image with error handling */}
+            {!imageError && (
+              <img 
+                src="/icon.png" 
+                alt="" 
+                className="absolute inset-0 w-full h-full object-cover z-10" 
+                onError={() => setImageError(true)} 
+              />
+            )}
           </div>
           <h1 className="text-3xl font-black text-white mb-2">Moja Špajza</h1>
           <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Inteligentná správa zásob</p>
@@ -101,7 +112,13 @@ export const AuthScreen: React.FC<Props> = ({ onLogin }) => {
           </button>
         </form>
 
-        <div className="mt-10 text-center">
+        <div className="mt-8 p-4 bg-blue-500/10 border border-blue-500/20 rounded-2xl">
+          <p className="text-[9px] font-bold text-blue-300 text-center uppercase tracking-wider leading-relaxed">
+            💡 INFO: Táto verzia ukladá dáta priamo do vášho zariadenia. Pre prenos do iného mobilu použite funkciu "Export" v nastaveniach.
+          </p>
+        </div>
+
+        <div className="mt-8 text-center">
           <button 
             onClick={() => setIsRegistering(!isRegistering)}
             className="text-slate-400 hover:text-white transition-colors text-xs font-black uppercase tracking-widest"

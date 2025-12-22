@@ -45,16 +45,24 @@ export const BarcodeScanner: React.FC<Props> = ({ onScan, onImageAnalysis, onClo
         scannerRef.current = html5QrCode;
 
         const config = { 
-          fps: 20,
+          fps: 15,
           qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
-            return { width: viewfinderWidth * 0.85, height: viewfinderHeight * 0.3 };
+            // Širší obdĺžnik je lepší pre čiarové kódy
+            const width = viewfinderWidth * 0.8;
+            const height = width * 0.4;
+            return { width, height };
           },
           aspectRatio: 1.0
         };
 
         const onScanSuccess = (text: string) => {
+          // Ak už niečo spracovávame, ignorujeme ďalšie scany
           if (isAnalyzing) return; 
-          if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+          
+          if (navigator.vibrate) navigator.vibrate(100);
+          
+          // Pozastavíme skener pred odoslaním na AI, aby nezamrzol pri zmene stavu modalov
+          html5QrCode.pause();
           onScan(text);
         };
 
@@ -70,24 +78,31 @@ export const BarcodeScanner: React.FC<Props> = ({ onScan, onImageAnalysis, onClo
             setHasTorch(true);
           }
         } catch (e) {
-          console.log("Torch not supported");
+          console.log("Torch support unknown");
         }
 
         setIsStarted(true);
       } catch (err: any) {
-        setError("Nepodarilo sa spustiť kameru.");
+        setError("Chyba kamery. Skúste obnoviť stránku.");
+        console.error(err);
       }
     };
 
-    const timer = setTimeout(startScanner, 300);
+    startScanner();
 
     return () => {
-      clearTimeout(timer);
       if (html5QrCode && html5QrCode.isScanning) {
-        html5QrCode.stop().catch(() => {});
+        html5QrCode.stop().catch((e: any) => console.log("Stop error", e));
       }
     };
   }, []);
+
+  // Ak analýza skončí a stále sme v skeneri, obnovíme snímanie
+  useEffect(() => {
+    if (!isAnalyzing && scannerRef.current && scannerRef.current.isPaused()) {
+      scannerRef.current.resume();
+    }
+  }, [isAnalyzing]);
 
   const toggleTorch = async () => {
     if (!scannerRef.current || !hasTorch) return;
@@ -103,6 +118,7 @@ export const BarcodeScanner: React.FC<Props> = ({ onScan, onImageAnalysis, onClo
   };
 
   const handleSnapshot = async () => {
+    if (isAnalyzing) return;
     const video = document.querySelector(`#${containerId} video`) as HTMLVideoElement;
     if (!video) return;
 
@@ -114,7 +130,7 @@ export const BarcodeScanner: React.FC<Props> = ({ onScan, onImageAnalysis, onClo
     const ctx = canvas.getContext('2d');
     if (ctx) {
       ctx.drawImage(video, 0, 0);
-      const base64 = canvas.toDataURL('image/jpeg', 0.9).split(',')[1];
+      const base64 = canvas.toDataURL('image/jpeg', 0.8).split(',')[1];
       onImageAnalysis(base64);
     }
   };
@@ -123,18 +139,16 @@ export const BarcodeScanner: React.FC<Props> = ({ onScan, onImageAnalysis, onClo
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/98 p-4 backdrop-blur-2xl overscroll-none">
       <div className="bg-white dark:bg-slate-900 rounded-[3rem] w-full max-w-md overflow-hidden relative shadow-2xl border border-slate-200 dark:border-slate-800 animate-in zoom-in-95 duration-300 flex flex-col max-h-[90vh]">
         
-        {/* Header */}
         <div className="p-7 flex justify-between items-center shrink-0">
           <div>
             <h3 className="font-black text-slate-900 dark:text-white text-xl">AI Čítačka kódov</h3>
-            <p className="text-[10px] text-emerald-500 font-black uppercase tracking-widest mt-1">Namierte na čísla pod kódom</p>
+            <p className="text-[10px] text-emerald-500 font-black uppercase tracking-widest mt-1">Zamerajte kód do obdĺžnika</p>
           </div>
           <button onClick={onClose} className="p-3 bg-slate-100 dark:bg-slate-800 text-slate-500 rounded-2xl active:scale-90 transition-transform">
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
         </div>
         
-        {/* Camera View */}
         <div className="relative aspect-square bg-black overflow-hidden shrink-0">
           <div id={containerId} className="w-full h-full object-cover"></div>
           
@@ -152,31 +166,31 @@ export const BarcodeScanner: React.FC<Props> = ({ onScan, onImageAnalysis, onClo
           </div>
 
           <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-            <div className="w-[85%] h-32 border-2 border-emerald-500/50 rounded-3xl relative">
-              <div className="absolute -top-1.5 -left-1.5 w-6 h-6 border-t-4 border-l-4 border-emerald-400 rounded-tl-xl"></div>
-              <div className="absolute -top-1.5 -right-1.5 w-6 h-6 border-t-4 border-r-4 border-emerald-400 rounded-tr-xl"></div>
-              <div className="absolute -bottom-1.5 -left-1.5 w-6 h-6 border-b-4 border-l-4 border-emerald-400 rounded-bl-xl"></div>
-              <div className="absolute -bottom-1.5 -right-1.5 w-6 h-6 border-b-4 border-r-4 border-emerald-400 rounded-br-xl"></div>
+            <div className="w-[85%] h-24 border-2 border-emerald-500/50 rounded-2xl relative">
+              <div className="absolute -top-1.5 -left-1.5 w-6 h-6 border-t-4 border-l-4 border-emerald-400 rounded-tl-lg"></div>
+              <div className="absolute -top-1.5 -right-1.5 w-6 h-6 border-t-4 border-r-4 border-emerald-400 rounded-tr-lg"></div>
+              <div className="absolute -bottom-1.5 -left-1.5 w-6 h-6 border-b-4 border-l-4 border-emerald-400 rounded-bl-lg"></div>
+              <div className="absolute -bottom-1.5 -right-1.5 w-6 h-6 border-b-4 border-r-4 border-emerald-400 rounded-br-lg"></div>
               
               <div className="absolute top-0 left-4 right-4 h-0.5 bg-emerald-400 shadow-[0_0_15px_rgba(52,211,153,1)] animate-scan"></div>
-              
-              <div className="absolute -bottom-12 inset-x-0 text-center">
-                <p className="text-[10px] font-black text-white/70 uppercase tracking-widest bg-black/40 backdrop-blur-sm px-4 py-1.5 rounded-full inline-block">
-                  ZAMERAJTE KÓD DO STREDU
-                </p>
-              </div>
             </div>
           </div>
 
           {isAnalyzing && (
-            <div className="absolute inset-0 bg-slate-900/90 backdrop-blur-md z-50 flex flex-col items-center justify-center text-center p-8">
-              <div className="w-16 h-16 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin mb-4"></div>
-              <p className="text-sm font-black text-white uppercase tracking-widest">Identifikujem produkt...</p>
+            <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center text-center p-8 animate-in fade-in duration-300">
+              <div className="w-14 h-14 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin mb-4"></div>
+              <p className="text-sm font-black text-white uppercase tracking-widest">Spracovávam produkt...</p>
+            </div>
+          )}
+
+          {error && (
+            <div className="absolute inset-0 bg-red-900/90 z-50 flex flex-col items-center justify-center text-center p-8">
+              <p className="text-white font-bold mb-4">{error}</p>
+              <button onClick={() => window.location.reload()} className="px-6 py-2 bg-white text-red-900 rounded-xl font-black uppercase text-[10px]">Obnoviť</button>
             </div>
           )}
         </div>
 
-        {/* Controls Scrollable Area */}
         <div className="p-8 space-y-6 overflow-y-auto no-scrollbar flex-1">
           <button 
             disabled={isAnalyzing || !isStarted}
