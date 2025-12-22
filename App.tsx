@@ -156,8 +156,8 @@ const App: React.FC = () => {
     setAiSuggestions("AI analyzuje vaše zásoby...");
     try {
       const suggestions = await getRecipeSuggestions(householdItems);
-      // Oprava: Použitie ?? null namiesto || null pre presnejšiu typovú kompatibilitu s TSC
-      setAiSuggestions(suggestions ?? null);
+      // Explicitné nastavenie na string alebo null, čím vyriešime chybu TS2345
+      setAiSuggestions(suggestions === undefined ? null : suggestions);
     } catch (error) {
       console.error(error);
       setAiSuggestions("Nepodarilo sa získať nápady na recepty.");

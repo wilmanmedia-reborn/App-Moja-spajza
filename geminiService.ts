@@ -2,14 +2,19 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { FoodItem, Category } from "./types";
 
+// Explicitná deklarácia pre TSC, aby poznal objekt process.env
+declare const process: {
+  env: {
+    API_KEY: string;
+  };
+};
+
 /**
  * Pomocná funkcia na bezpečné parsovanie JSON z textu modelu.
- * Odstraňuje markdown bloky ```json ... ```.
  */
 function safeJsonParse(text: string | undefined) {
   if (!text) return null;
   try {
-    // Odstránenie prípadných markdown značiek, ak ich model omylom pridá
     const cleanText = text.replace(/```json/gi, '').replace(/```/gi, '').trim();
     return JSON.parse(cleanText);
   } catch (e) {
@@ -21,7 +26,7 @@ function safeJsonParse(text: string | undefined) {
 /**
  * Funkcia na získanie receptov zo zásob.
  */
-export async function getRecipeSuggestions(items: FoodItem[]) {
+export async function getRecipeSuggestions(items: FoodItem[]): Promise<string | null> {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const stockInfo = items
     .filter(i => (i.currentQuantity / i.totalQuantity) > 0.1)
@@ -38,8 +43,7 @@ export async function getRecipeSuggestions(items: FoodItem[]) {
         temperature: 0.7,
       }
     });
-    // Guidelines: Use .text property directly
-    return response.text;
+    return response.text ?? null;
   } catch (error) {
     console.error("Gemini API Error:", error);
     return "Prepáčte, nepodarilo sa získať nápady na recepty.";
@@ -47,7 +51,7 @@ export async function getRecipeSuggestions(items: FoodItem[]) {
 }
 
 /**
- * Funkcia na spracovanie textu alebo EAN kódu s inteligentnou kategorizáciou.
+ * Funkcia na spracovanie textu alebo EAN kódu.
  */
 export async function parseSmartEntry(input: string, existingCategories: Category[]) {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
@@ -59,11 +63,10 @@ export async function parseSmartEntry(input: string, existingCategories: Categor
     ? `Identifikuj presný názov a detaily potraviny podľa EAN kódu: "${input}". 
        Použi Google Search na zistenie názvu a veľkosti balenia. 
        Priraď k produktu najvhodnejšiu kategóriu zo zoznamu: [${categoriesList}]. 
-       Ak žiadna nesedí, navrhni nový krátky názov kategórie (napr. "Sladkosti", "Mliečne výrobky"). 
+       Ak žiadna nesedí, navrhni nový krátky názov kategórie. 
        Vráť JSON v slovenčine.`
     : `Analyzuj text o potravine: "${input}". Extrahuj názov, množstvo a jednotku. 
        Priraď k produktu najvhodnejšiu kategóriu zo zoznamu: [${categoriesList}]. 
-       Ak žiadna nesedí, navrhni nový krátky názov kategórie. 
        Vráť JSON v slovenčine.`;
 
   try {
@@ -79,14 +82,13 @@ export async function parseSmartEntry(input: string, existingCategories: Categor
             name: { type: Type.STRING },
             quantity: { type: Type.NUMBER },
             unit: { type: Type.STRING },
-            categoryName: { type: Type.STRING, description: "Názov najvhodnejšej kategórie" },
+            categoryName: { type: Type.STRING },
             isHomemade: { type: Type.BOOLEAN }
           },
           required: ["name", "quantity", "unit", "categoryName"]
         }
       }
     });
-    // Guidelines: Use .text property directly
     return safeJsonParse(response.text);
   } catch (error) {
     console.error("Parse Error:", error);
@@ -95,51 +97,34 @@ export async function parseSmartEntry(input: string, existingCategories: Categor
 }
 
 /**
- * Funkcia na analýzu fotky s inteligentnou kategorizáciou.
+ * Funkcia na analýzu fotky.
  */
 export async function analyzeProductImage(base64Image: string, existingCategories: Category[]) {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const categoriesList = existingCategories.map(c => c.name).join(", ");
 
   try {
-    // OCR pre čiarový kód
     const ocrResponse = await ai.models.generateContent({
-      // nano banana, or gemini flash image: 'gemini-2.5-flash-image'
       model: 'gemini-2.5-flash-image',
       contents: {
         parts: [
-          {
-            inlineData: {
-              mimeType: 'image/jpeg',
-              data: base64Image,
-            },
-          },
-          {
-            text: "Na obrázku je čiarový kód. Prečítaj číselný kód (EAN/UPC) pod čiarami. Ak nie je kód viditeľný, napíš 'UNKNOWN'. Vráť len čisté číslo.",
-          },
+          { inlineData: { mimeType: 'image/jpeg', data: base64Image } },
+          { text: "Prečítaj EAN kód z obrázku. Ak nie je, napíš 'UNKNOWN'." },
         ],
       },
     });
 
-    // Guidelines: Use .text property directly
     const detectedCode = ocrResponse.text?.trim() || "";
-    const isCode = /^\d{8,14}$/.test(detectedCode);
-
-    if (isCode) {
+    if (/^\d{8,14}$/.test(detectedCode)) {
       return await parseSmartEntry(detectedCode, existingCategories);
     }
 
-    // Vizuálna identifikácia
     const visualResponse = await ai.models.generateContent({
-        // nano banana, or gemini flash image: 'gemini-2.5-flash-image'
         model: 'gemini-2.5-flash-image',
         contents: {
           parts: [
             { inlineData: { mimeType: 'image/jpeg', data: base64Image } },
-            { text: `Identifikuj produkt na fotke (názov a veľkosť). 
-                     Priraď najvhodnejšiu kategóriu zo zoznamu: [${categoriesList}]. 
-                     Ak žiadna nesedí, navrhni nový krátky názov kategórie. 
-                     Vráť JSON v slovenčine.` }
+            { text: `Identifikuj produkt. Kategórie: [${categoriesList}]. Vráť JSON.` }
           ],
         },
         config: {
@@ -156,9 +141,8 @@ export async function analyzeProductImage(base64Image: string, existingCategorie
           }
         }
     });
-    // Guidelines: Use .text property directly
     return safeJsonParse(visualResponse.text);
-  } catch (error: any) {
+  } catch (error) {
     console.error("Image Analysis Error:", error);
     return null;
   }
