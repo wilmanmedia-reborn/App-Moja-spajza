@@ -156,9 +156,8 @@ const App: React.FC = () => {
     setAiSuggestions("AI analyzuje vaše zásoby...");
     try {
       const suggestions = await getRecipeSuggestions(householdItems);
-      // Explicitné pretypovanie pre TSC
-      const finalSuggestions = (suggestions ?? null) as string | null;
-      setAiSuggestions(finalSuggestions);
+      // Ošetrenie undefined pre TSC: ak je undefined, nastavíme null
+      setAiSuggestions(suggestions ?? null);
     } catch (error) {
       console.error(error);
       setAiSuggestions("Nepodarilo sa získať nápady na recepty.");
