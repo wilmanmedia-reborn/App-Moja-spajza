@@ -10,7 +10,6 @@ function safeJsonParse(text: string | undefined) {
     return JSON.parse(cleanText);
   } catch (e) {
     console.error("JSON Parse Error. Original text:", text);
-    // Skúsime nájsť JSON blok pomocou regexu ak zlyhalo priame čistenie
     const match = text.match(/\{[\s\S]*\}/);
     if (match) {
       try { return JSON.parse(match[0]); } catch (innerE) { return null; }
@@ -48,12 +47,21 @@ export async function parseSmartEntry(input: string, existingCategories: Categor
   
   const categoriesList = existingCategories.map(c => c.name).join(", ");
   
-  // Pre EAN kódy používame Pro model s Google Search pre maximálnu presnosť
   const modelName = isBarcode ? 'gemini-3-pro-preview' : 'gemini-3-flash-preview';
 
+  // Výrazne vylepšený prompt pre EAN kódy
   const prompt = isBarcode 
-    ? `Hľadaj v Google: Aký konkrétny potravinový produkt má EAN kód "${input.trim()}"? 
-       Vráť JSON v slovenčine s poliami: name (celý názov), quantity (číslo), unit (g, ml, ks, l), categoryName (vyber z [${categoriesList}] alebo navrhni novú), isHomemade: false.`
+    ? `HĽADAJ V GOOGLE: Aký konkrétny potravinový produkt sa predáva v EÚ (najmä Slovensko/Česko) s EAN kódom "${input.trim()}"? 
+       Prehľadaj katalógy ako Tesco Online, Billa, Lidl, PotravinyDomov.sk alebo EAN databázy.
+       Nájdi: Celý názov, značku, gramáž (napr. 500g) alebo objem (napr. 1l).
+       Vráť JSON v slovenčine:
+       {
+         "name": "Presný názov produktu so značkou a veľkosťou",
+         "quantity": číslo vyjadrujúce veľkosť balenia,
+         "unit": "g" alebo "ml" alebo "ks" alebo "l",
+         "categoryName": "najvhodnejšia kategória zo zoznamu [${categoriesList}] alebo nová logická",
+         "isHomemade": false
+       }`
     : `Analyzuj text: "${input}". Extrahuj názov, množstvo, jednotku a kategóriu (zo zoznamu: [${categoriesList}]). Vráť JSON v slovenčine.`;
 
   try {
@@ -79,58 +87,6 @@ export async function parseSmartEntry(input: string, existingCategories: Categor
     return safeJsonParse(response.text);
   } catch (error) {
     console.error("Parse Error:", error);
-    return null;
-  }
-}
-
-export async function analyzeProductImage(base64Image: string, existingCategories: Category[]) {
-  const apiKey = (process.env as any).API_KEY;
-  const ai = new GoogleGenAI({ apiKey });
-  const categoriesList = existingCategories.map(c => c.name).join(", ");
-
-  try {
-    // Najprv skúsime len OCR na nájdenie čiarového kódu
-    const ocrResponse = await ai.models.generateContent({
-      model: 'gemini-2.5-flash-image',
-      contents: {
-        parts: [
-          { inlineData: { mimeType: 'image/jpeg', data: base64Image } },
-          { text: "Ak vidíš na produkte čiarový kód (číslo EAN), napíš ho. Ak nie, napíš 'NONE'." },
-        ],
-      },
-    });
-
-    const detectedCode = ocrResponse.text?.trim().match(/\d{8,14}/)?.[0];
-    if (detectedCode) {
-      return await parseSmartEntry(detectedCode, existingCategories);
-    }
-
-    // Ak kód nenašlo, analyzujeme produkt vizuálne
-    const visualResponse = await ai.models.generateContent({
-        model: 'gemini-2.5-flash-image',
-        contents: {
-          parts: [
-            { inlineData: { mimeType: 'image/jpeg', data: base64Image } },
-            { text: `Identifikuj potravinu na fotke. Priraď kategóriu z: [${categoriesList}]. Vráť JSON.` }
-          ],
-        },
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              name: { type: Type.STRING },
-              quantity: { type: Type.NUMBER },
-              unit: { type: Type.STRING },
-              categoryName: { type: Type.STRING }
-            },
-            required: ["name", "quantity", "unit", "categoryName"]
-          }
-        }
-    });
-    return safeJsonParse(visualResponse.text);
-  } catch (error) {
-    console.error("Image Analysis Error:", error);
     return null;
   }
 }
