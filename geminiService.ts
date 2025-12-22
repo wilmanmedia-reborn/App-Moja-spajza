@@ -2,6 +2,13 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { FoodItem, Category } from "./types";
 
+// Deklarácia pre process, aby TypeScript nemal chybu, kým sa nenatiahnu typy
+declare var process: {
+  env: {
+    API_KEY: string;
+  };
+};
+
 /**
  * Pomocná funkcia na bezpečné parsovanie JSON z textu modelu.
  * Odstraňuje markdown bloky ```json ... ```.
