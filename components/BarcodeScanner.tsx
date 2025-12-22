@@ -18,7 +18,9 @@ export const BarcodeScanner: React.FC<Props> = ({ onScan, onImageAnalysis, onClo
   const [hasTorch, setHasTorch] = useState(false);
   const [isTorchOn, setIsTorchOn] = useState(false);
   const scannerRef = useRef<any>(null);
-  const containerId = "qr-reader-target-" + Math.random().toString(36).substr(2, 5);
+  
+  // ID musí byť stabilné počas celého životného cyklu komponentu
+  const [containerId] = useState(() => "qr-reader-target-" + Math.random().toString(36).substr(2, 5));
 
   useEffect(() => {
     let html5QrCode: any;
@@ -27,6 +29,12 @@ export const BarcodeScanner: React.FC<Props> = ({ onScan, onImageAnalysis, onClo
       try {
         if (typeof Html5Qrcode === 'undefined') {
           setError("Knižnica sa nenačítala.");
+          return;
+        }
+
+        // Overenie, či prehliadač podporuje mediaDevices
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          setError("Váš prehliadač nepodporuje prístup ku kamere.");
           return;
         }
 
@@ -47,8 +55,9 @@ export const BarcodeScanner: React.FC<Props> = ({ onScan, onImageAnalysis, onClo
         const config = { 
           fps: 15,
           qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
-            // Širší obdĺžnik je lepší pre čiarové kódy
-            const width = viewfinderWidth * 0.8;
+            const w = viewfinderWidth || 300;
+            const h = viewfinderHeight || 300;
+            const width = w * 0.8;
             const height = width * 0.4;
             return { width, height };
           },
@@ -56,20 +65,36 @@ export const BarcodeScanner: React.FC<Props> = ({ onScan, onImageAnalysis, onClo
         };
 
         const onScanSuccess = (text: string) => {
-          // Ak už niečo spracovávame, ignorujeme ďalšie scany
           if (isAnalyzing) return; 
           
           if (navigator.vibrate) navigator.vibrate(100);
           
-          // Pozastavíme skener pred odoslaním na AI, aby nezamrzol pri zmene stavu modalov
-          html5QrCode.pause();
+          try {
+            if (html5QrCode.getState() === 2) { // 2 = SCANNING
+               html5QrCode.pause();
+            }
+          } catch (e) {
+            console.warn("Pause failed", e);
+          }
+          
           onScan(text);
         };
 
-        try {
-          await html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess, () => {});
-        } catch (e) {
-          await html5QrCode.start({ facingMode: "user" }, config, onScanSuccess, () => {});
+        // Získame zoznam kamier pred štartom, aby sme predišli NotFoundError
+        const cameras = await Html5Qrcode.getCameras();
+        
+        if (cameras && cameras.length > 0) {
+          try {
+            // Skúsime prioritne zadnú kameru (environment)
+            await html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess, () => {});
+          } catch (e: any) {
+            console.warn("Zadná kamera nie je dostupná, skúšam predvolenú.", e);
+            // Ak zlyhá facingMode, skúsime prvú dostupnú kameru podľa ID
+            await html5QrCode.start(cameras[0].id, config, onScanSuccess, () => {});
+          }
+        } else {
+          setError("Nenašla sa žiadna kamera na tomto zariadení.");
+          return;
         }
         
         try {
@@ -83,8 +108,14 @@ export const BarcodeScanner: React.FC<Props> = ({ onScan, onImageAnalysis, onClo
 
         setIsStarted(true);
       } catch (err: any) {
-        setError("Chyba kamery. Skúste obnoviť stránku.");
-        console.error(err);
+        console.error("Scanner start error:", err);
+        if (err?.name === 'NotAllowedError') {
+          setError("Prístup ku kamere bol zamietnutý. Povoľte ju v nastaveniach.");
+        } else if (err?.name === 'NotFoundError') {
+          setError("Kamera nebola nájdená. Skontrolujte pripojenie.");
+        } else {
+          setError("Chyba kamery: " + (err?.message || "neznáma chyba"));
+        }
       }
     };
 
@@ -95,12 +126,18 @@ export const BarcodeScanner: React.FC<Props> = ({ onScan, onImageAnalysis, onClo
         html5QrCode.stop().catch((e: any) => console.log("Stop error", e));
       }
     };
-  }, []);
+  }, [containerId]); 
 
-  // Ak analýza skončí a stále sme v skeneri, obnovíme snímanie
   useEffect(() => {
-    if (!isAnalyzing && scannerRef.current && scannerRef.current.isPaused()) {
-      scannerRef.current.resume();
+    if (!isAnalyzing && scannerRef.current) {
+      try {
+        const state = scannerRef.current.getState();
+        if (state === 3) { // 3 = PAUSED
+          scannerRef.current.resume();
+        }
+      } catch (e) {
+        console.error("Resume failed", e);
+      }
     }
   }, [isAnalyzing]);
 
