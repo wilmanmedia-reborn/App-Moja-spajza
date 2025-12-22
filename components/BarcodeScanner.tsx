@@ -6,12 +6,11 @@ declare var Html5QrcodeSupportedFormats: any;
 
 interface Props {
   onScan: (decodedText: string) => void;
-  onImageAnalysis: (base64: string) => void;
   onClose: () => void;
   isAnalyzing: boolean;
 }
 
-export const BarcodeScanner: React.FC<Props> = ({ onScan, onImageAnalysis, onClose, isAnalyzing }) => {
+export const BarcodeScanner: React.FC<Props> = ({ onScan, onClose, isAnalyzing }) => {
   const [error, setError] = useState<string | null>(null);
   const [isStarted, setIsStarted] = useState(false);
   const [manualCode, setManualCode] = useState('');
@@ -19,7 +18,6 @@ export const BarcodeScanner: React.FC<Props> = ({ onScan, onImageAnalysis, onClo
   const [isTorchOn, setIsTorchOn] = useState(false);
   const scannerRef = useRef<any>(null);
   
-  // ID musí byť stabilné počas celého životného cyklu komponentu
   const [containerId] = useState(() => "qr-reader-target-" + Math.random().toString(36).substr(2, 5));
 
   useEffect(() => {
@@ -28,13 +26,7 @@ export const BarcodeScanner: React.FC<Props> = ({ onScan, onImageAnalysis, onClo
     const startScanner = async () => {
       try {
         if (typeof Html5Qrcode === 'undefined') {
-          setError("Knižnica sa nenačítala.");
-          return;
-        }
-
-        // Overenie, či prehliadač podporuje mediaDevices
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-          setError("Váš prehliadač nepodporuje prístup ku kamere.");
+          setError("Knižnica sa nenačítala. Skúste obnoviť stránku.");
           return;
         }
 
@@ -53,12 +45,10 @@ export const BarcodeScanner: React.FC<Props> = ({ onScan, onImageAnalysis, onClo
         scannerRef.current = html5QrCode;
 
         const config = { 
-          fps: 15,
+          fps: 20,
           qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
-            const w = viewfinderWidth || 300;
-            const h = viewfinderHeight || 300;
-            const width = w * 0.8;
-            const height = width * 0.4;
+            const width = Math.min(viewfinderWidth * 0.8, 400);
+            const height = width * 0.5;
             return { width, height };
           },
           aspectRatio: 1.0
@@ -66,7 +56,6 @@ export const BarcodeScanner: React.FC<Props> = ({ onScan, onImageAnalysis, onClo
 
         const onScanSuccess = (text: string) => {
           if (isAnalyzing) return; 
-          
           if (navigator.vibrate) navigator.vibrate(100);
           
           try {
@@ -74,26 +63,36 @@ export const BarcodeScanner: React.FC<Props> = ({ onScan, onImageAnalysis, onClo
                html5QrCode.pause();
             }
           } catch (e) {
-            console.warn("Pause failed", e);
+            console.warn("Chyba pri pozastavení skenera", e);
           }
           
           onScan(text);
         };
 
-        // Získame zoznam kamier pred štartom, aby sme predišli NotFoundError
+        // Získame všetky kamery
         const cameras = await Html5Qrcode.getCameras();
         
         if (cameras && cameras.length > 0) {
           try {
-            // Skúsime prioritne zadnú kameru (environment)
-            await html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess, () => {});
+            // Najprv skúsime preferovať zadnú kameru
+            await html5QrCode.start(
+              { facingMode: "environment" }, 
+              config, 
+              onScanSuccess, 
+              () => {}
+            );
           } catch (e: any) {
-            console.warn("Zadná kamera nie je dostupná, skúšam predvolenú.", e);
-            // Ak zlyhá facingMode, skúsime prvú dostupnú kameru podľa ID
-            await html5QrCode.start(cameras[0].id, config, onScanSuccess, () => {});
+            console.warn("FacingMode: environment zlyhal, skúšam prvú dostupnú kameru.", e);
+            // Ak facingMode zlyhá (typické pre desktop alebo špecifické Androidy), použijeme ID prvej kamery
+            await html5QrCode.start(
+              cameras[0].id, 
+              config, 
+              onScanSuccess, 
+              () => {}
+            );
           }
         } else {
-          setError("Nenašla sa žiadna kamera na tomto zariadení.");
+          setError("Nenašla sa žiadna kamera.");
           return;
         }
         
@@ -103,18 +102,18 @@ export const BarcodeScanner: React.FC<Props> = ({ onScan, onImageAnalysis, onClo
             setHasTorch(true);
           }
         } catch (e) {
-          console.log("Torch support unknown");
+          console.log("Blesk nie je podporovaný");
         }
 
         setIsStarted(true);
       } catch (err: any) {
-        console.error("Scanner start error:", err);
+        console.error("Chyba štartu skenera:", err);
         if (err?.name === 'NotAllowedError') {
-          setError("Prístup ku kamere bol zamietnutý. Povoľte ju v nastaveniach.");
-        } else if (err?.name === 'NotFoundError') {
-          setError("Kamera nebola nájdená. Skontrolujte pripojenie.");
+          setError("Povoľte prístup ku kamere v nastaveniach prehliadača.");
+        } else if (err?.name === 'NotFoundError' || err?.message?.includes('Requested device not found')) {
+          setError("Kamera nebola nájdená. Skúste iný prehliadač alebo zariadenie.");
         } else {
-          setError("Chyba kamery: " + (err?.message || "neznáma chyba"));
+          setError("Chyba kamery: " + (err?.message || "neznámy problém"));
         }
       }
     };
@@ -122,8 +121,8 @@ export const BarcodeScanner: React.FC<Props> = ({ onScan, onImageAnalysis, onClo
     startScanner();
 
     return () => {
-      if (html5QrCode && html5QrCode.isScanning) {
-        html5QrCode.stop().catch((e: any) => console.log("Stop error", e));
+      if (html5QrCode && html5QrCode.getState() !== 1) { // 1 = IDLE
+        html5QrCode.stop().catch((e: any) => console.log("Chyba pri vypínaní", e));
       }
     };
   }, [containerId]); 
@@ -131,12 +130,11 @@ export const BarcodeScanner: React.FC<Props> = ({ onScan, onImageAnalysis, onClo
   useEffect(() => {
     if (!isAnalyzing && scannerRef.current) {
       try {
-        const state = scannerRef.current.getState();
-        if (state === 3) { // 3 = PAUSED
+        if (scannerRef.current.getState() === 3) { // 3 = PAUSED
           scannerRef.current.resume();
         }
       } catch (e) {
-        console.error("Resume failed", e);
+        console.error("Chyba pri obnovení", e);
       }
     }
   }, [isAnalyzing]);
@@ -150,36 +148,18 @@ export const BarcodeScanner: React.FC<Props> = ({ onScan, onImageAnalysis, onClo
       });
       setIsTorchOn(newState);
     } catch (e) {
-      console.error("Failed to toggle torch", e);
-    }
-  };
-
-  const handleSnapshot = async () => {
-    if (isAnalyzing) return;
-    const video = document.querySelector(`#${containerId} video`) as HTMLVideoElement;
-    if (!video) return;
-
-    if (navigator.vibrate) navigator.vibrate([50, 30, 50]);
-
-    const canvas = document.createElement('canvas');
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const ctx = canvas.getContext('2d');
-    if (ctx) {
-      ctx.drawImage(video, 0, 0);
-      const base64 = canvas.toDataURL('image/jpeg', 0.8).split(',')[1];
-      onImageAnalysis(base64);
+      console.error("Nepodarilo sa prepnúť blesk", e);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/98 p-4 backdrop-blur-2xl overscroll-none">
-      <div className="bg-white dark:bg-slate-900 rounded-[3rem] w-full max-w-md overflow-hidden relative shadow-2xl border border-slate-200 dark:border-slate-800 animate-in zoom-in-95 duration-300 flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/98 p-4 backdrop-blur-2xl">
+      <div className="bg-white dark:bg-slate-900 rounded-[3rem] w-full max-w-md overflow-hidden relative shadow-2xl border border-slate-200 dark:border-slate-800 animate-in zoom-in-95 duration-300 flex flex-col max-h-[85vh]">
         
         <div className="p-7 flex justify-between items-center shrink-0">
           <div>
-            <h3 className="font-black text-slate-900 dark:text-white text-xl">AI Čítačka kódov</h3>
-            <p className="text-[10px] text-emerald-500 font-black uppercase tracking-widest mt-1">Zamerajte kód do obdĺžnika</p>
+            <h3 className="font-black text-slate-900 dark:text-white text-xl uppercase tracking-tighter">Skener čiarových kódov</h3>
+            <p className="text-[10px] text-emerald-500 font-black uppercase tracking-widest mt-1">Automatické rozpoznávanie</p>
           </div>
           <button onClick={onClose} className="p-3 bg-slate-100 dark:bg-slate-800 text-slate-500 rounded-2xl active:scale-90 transition-transform">
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M6 18L18 6M6 6l12 12" /></svg>
@@ -203,48 +183,38 @@ export const BarcodeScanner: React.FC<Props> = ({ onScan, onImageAnalysis, onClo
           </div>
 
           <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-            <div className="w-[85%] h-24 border-2 border-emerald-500/50 rounded-2xl relative">
+            <div className="w-[85%] h-32 border-2 border-emerald-500/50 rounded-2xl relative">
               <div className="absolute -top-1.5 -left-1.5 w-6 h-6 border-t-4 border-l-4 border-emerald-400 rounded-tl-lg"></div>
               <div className="absolute -top-1.5 -right-1.5 w-6 h-6 border-t-4 border-r-4 border-emerald-400 rounded-tr-lg"></div>
               <div className="absolute -bottom-1.5 -left-1.5 w-6 h-6 border-b-4 border-l-4 border-emerald-400 rounded-bl-lg"></div>
               <div className="absolute -bottom-1.5 -right-1.5 w-6 h-6 border-b-4 border-r-4 border-emerald-400 rounded-br-lg"></div>
               
-              <div className="absolute top-0 left-4 right-4 h-0.5 bg-emerald-400 shadow-[0_0_15px_rgba(52,211,153,1)] animate-scan"></div>
+              <div className="absolute top-0 left-4 right-4 h-0.5 bg-red-500 shadow-[0_0_15px_rgba(239,68,68,1)] animate-scan"></div>
             </div>
+            <p className="absolute bottom-10 text-white text-[10px] font-black uppercase tracking-[0.3em] opacity-50">Vycentrujte kód</p>
           </div>
 
           {isAnalyzing && (
-            <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center text-center p-8 animate-in fade-in duration-300">
+            <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center text-center p-8">
               <div className="w-14 h-14 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin mb-4"></div>
-              <p className="text-sm font-black text-white uppercase tracking-widest">Spracovávam produkt...</p>
+              <p className="text-sm font-black text-white uppercase tracking-widest">Hľadám produkt v databáze...</p>
             </div>
           )}
 
           {error && (
-            <div className="absolute inset-0 bg-red-900/90 z-50 flex flex-col items-center justify-center text-center p-8">
-              <p className="text-white font-bold mb-4">{error}</p>
-              <button onClick={() => window.location.reload()} className="px-6 py-2 bg-white text-red-900 rounded-xl font-black uppercase text-[10px]">Obnoviť</button>
+            <div className="absolute inset-0 bg-red-950/95 z-50 flex flex-col items-center justify-center text-center p-10">
+              <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center text-red-500 mb-6">
+                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+              </div>
+              <p className="text-white font-bold text-sm mb-6 leading-relaxed">{error}</p>
+              <button onClick={() => window.location.reload()} className="px-8 py-3 bg-white text-red-900 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl active:scale-95 transition-transform">Obnoviť</button>
             </div>
           )}
         </div>
 
-        <div className="p-8 space-y-6 overflow-y-auto no-scrollbar flex-1">
-          <button 
-            disabled={isAnalyzing || !isStarted}
-            onClick={handleSnapshot}
-            className="w-full py-5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 text-white rounded-3xl font-black text-xs uppercase tracking-[0.2em] flex items-center justify-center gap-3 shadow-xl shadow-emerald-600/20 active:scale-95 transition-all"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /></svg>
-            SKENOVAŤ ČÍSLO
-          </button>
-
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center" aria-hidden="true">
-              <div className="w-full border-t border-slate-100 dark:border-slate-800"></div>
-            </div>
-            <div className="relative flex justify-center text-[10px] font-black uppercase tracking-widest">
-              <span className="bg-white dark:bg-slate-900 px-4 text-slate-400">ALEBO ZADAŤ RUČNE</span>
-            </div>
+        <div className="p-8 space-y-6 overflow-y-auto no-scrollbar flex-1 bg-slate-50 dark:bg-slate-800/20">
+          <div className="text-center">
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">alebo zadajte ručne</p>
           </div>
 
           <form 
@@ -254,17 +224,21 @@ export const BarcodeScanner: React.FC<Props> = ({ onScan, onImageAnalysis, onClo
             <input 
               type="number" pattern="\d*" inputMode="numeric"
               value={manualCode} onChange={e => setManualCode(e.target.value)}
-              placeholder="Napíšte kód produktu..."
-              className="flex-1 px-6 py-4 bg-slate-100 dark:bg-slate-800 border-none rounded-2xl text-sm font-bold dark:text-white outline-none focus:ring-2 focus:ring-emerald-500 transition-all"
+              placeholder="EAN kód (napr. 858...)"
+              className="flex-1 px-6 py-4 bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-2xl text-sm font-bold dark:text-white outline-none focus:border-emerald-500 transition-all"
             />
             <button 
               type="submit"
               disabled={!manualCode.trim() || isAnalyzing}
-              className="px-8 bg-slate-900 dark:bg-slate-200 text-white dark:text-slate-900 rounded-2xl font-black text-[11px] uppercase tracking-widest disabled:opacity-30 active:scale-90 transition-transform"
+              className="px-6 bg-slate-900 dark:bg-slate-200 text-white dark:text-slate-900 rounded-2xl font-black text-[11px] uppercase tracking-widest disabled:opacity-30 active:scale-90 transition-transform"
             >
-              OK
+              Hľadať
             </button>
           </form>
+          
+          <p className="text-[9px] text-slate-400 text-center font-medium leading-relaxed">
+            AI vyhľadá informácie o produkte automaticky podľa jeho čiarového kódu cez Google Search.
+          </p>
         </div>
       </div>
     </div>

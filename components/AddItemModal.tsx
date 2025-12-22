@@ -2,14 +2,13 @@
 import React, { useState, useEffect } from 'react';
 import { FoodItem, Unit, Location, Category } from '../types';
 import { BarcodeScanner } from './BarcodeScanner';
-import { parseSmartEntry, analyzeProductImage } from '../geminiService';
+import { parseSmartEntry } from '../geminiService';
 
 declare var window: any;
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
-  // Fix: Omit 'householdId' as it's added in handleAddItem in App.tsx
   onAdd: (item: Omit<FoodItem, 'id' | 'lastUpdated' | 'householdId'>) => void;
   onUpdate: (id: string, updates: Partial<FoodItem>) => void;
   onAddCategory: (categoryName: string) => string;
@@ -66,7 +65,6 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
 
   const handleApplyResult = (result: any) => {
     if (result) {
-      // Automatické pridanie/nájdenie kategórie
       let catId = formData.category;
       if (result.categoryName) {
         catId = onAddCategory(result.categoryName);
@@ -82,7 +80,7 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
       }));
       setShowScanner(false);
     } else {
-      alert("AI sa nepodarilo produkt rozpoznať. Skúste iný uhol alebo zadajte údaje manuálne.");
+      alert("AI sa nepodarilo produkt rozpoznať podľa kódu. Zadajte údaje manuálne.");
     }
   };
 
@@ -93,20 +91,7 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
       handleApplyResult(result);
     } catch (e: any) {
       console.error(e);
-      alert("Chyba pri rozpoznávaní kódu.");
-    } finally {
-      setIsAiProcessing(false);
-    }
-  };
-
-  const handleImageAnalysis = async (base64: string) => {
-    setIsAiProcessing(true);
-    try {
-      const result = await analyzeProductImage(base64, categories);
-      handleApplyResult(result);
-    } catch (e: any) {
-      console.error(e);
-      alert("Nepodarilo sa analyzovať obrázok. Skúste znova.");
+      alert("Chyba pri hľadaní produktu.");
     } finally {
       setIsAiProcessing(false);
     }
@@ -140,20 +125,18 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
     <>
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
         <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] w-full max-w-md max-h-[90vh] shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800 flex flex-col">
-          {/* Sticky Header */}
           <div className="px-8 py-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-800/50 sticky top-0 z-10 shrink-0">
             <div>
               <h2 className="text-2xl font-black text-slate-900 dark:text-white">
                 {editingItem ? 'Upraviť' : 'Pridať zásoby'}
               </h2>
-              {isAiProcessing && <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest animate-pulse">AI spracováva...</p>}
+              {isAiProcessing && <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest animate-pulse">Hľadám produkt...</p>}
             </div>
             <button onClick={onClose} className="p-3 bg-white dark:bg-slate-800 text-slate-400 rounded-2xl border border-slate-100 dark:border-slate-700 active:scale-90 transition-transform">
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M6 18L18 6M6 6l12 12" /></svg>
             </button>
           </div>
 
-          {/* Scrollable Form */}
           <div className="overflow-y-auto no-scrollbar flex-1 overscroll-contain">
             <form onSubmit={handleSubmit} className="px-8 pt-8 pb-32 space-y-6">
               <div>
@@ -165,8 +148,8 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
                     className="flex-1 px-5 py-3 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white border-none rounded-2xl focus:ring-2 focus:ring-emerald-500 outline-none font-bold"
                   />
                   {!editingItem && (
-                    <button type="button" onClick={() => setShowScanner(true)} className="p-3.5 bg-indigo-600 text-white rounded-2xl shadow-lg active:scale-90 transition-transform">
-                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /></svg>
+                    <button type="button" onClick={() => setShowScanner(true)} className="p-3.5 bg-emerald-600 text-white rounded-2xl shadow-lg active:scale-90 transition-transform">
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v1m-3.322 3.322l-.707.707M5 12h1m3.322 3.322l-.707.707M12 19v1m3.322-3.322l.707.707M19 12h1m-3.322-3.322l.707-.707M12 12a4 4 0 110-8 4 4 0 010 8z" /></svg>
                     </button>
                   )}
                 </div>
@@ -226,7 +209,6 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
       {showScanner && (
         <BarcodeScanner 
           onScan={handleBarcodeScan} 
-          onImageAnalysis={handleImageAnalysis}
           onClose={() => setShowScanner(false)} 
           isAnalyzing={isAiProcessing}
         />
