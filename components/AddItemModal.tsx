@@ -82,8 +82,7 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
         category: catId
       }));
     } else {
-      // Tu opravujeme zobrazenie kódu v chybovej hláške
-      alert(`Produkt s kód ${codeUsed} sa nepodarilo automaticky rozpoznať. Prosím, zadajte názov ručne.`);
+      alert(`Produkt s kódom ${codeUsed} sa nepodarilo automaticky nájsť v databázach ani na webe. Zadajte názov produktu ručne.`);
     }
   };
 
