@@ -17,6 +17,9 @@ function safeJsonParse(text: string | undefined) {
   }
 }
 
+/**
+ * 1. KROK: OpenFoodFacts (Blesková databáza pre globálne a privátne značky ako Lidl/Freshona)
+ */
 async function fetchFromOpenFoodFacts(barcode: string) {
   try {
     const response = await fetch(`https://world.openfoodfacts.org/api/v2/product/${barcode}.json?fields=product_name,brands,quantity,product_name_sk,product_name_cs,product_name_en,net_weight_unit,net_weight_value`);
@@ -31,22 +34,19 @@ async function fetchFromOpenFoodFacts(barcode: string) {
       let quantity = 1;
       let unit = 'ks';
       
-      // Pokročilejšia extrakcia gramáže
       const weightStr = p.quantity || "";
       const match = weightStr.match(/(\d+(?:[\.,]\d+)?)\s*([a-zA-Z]+)/);
       if (match) {
         quantity = parseFloat(match[1].replace(',', '.'));
         const u = match[2].toLowerCase();
         if (['g', 'kg', 'ml', 'l'].includes(u)) unit = u;
-      } else if (p.net_weight_value) {
-        quantity = parseFloat(p.net_weight_value);
-        unit = p.net_weight_unit?.toLowerCase() || 'g';
       }
 
       return {
         name: fullName.trim(),
         quantity: quantity,
-        unit: unit
+        unit: unit,
+        source: 'OFF'
       };
     }
     return null;
@@ -55,54 +55,59 @@ async function fetchFromOpenFoodFacts(barcode: string) {
   }
 }
 
+/**
+ * 2. KROK: Google Search Grounding (Pre Relax, Pfanner a slovenské špecifiká)
+ */
 export async function parseSmartEntry(input: string, existingCategories: Category[]) {
   const isBarcode = /^\d{8,14}$/.test(input.trim());
   const categoriesList = existingCategories.map(c => c.name).join(", ");
   
-  // 1. Priorita: Rýchla databáza
+  // Skúsime najprv OFF (zadarmo a rýchlo)
   if (isBarcode) {
-    const directResult = await fetchFromOpenFoodFacts(input.trim());
-    if (directResult && directResult.name) {
+    const offResult = await fetchFromOpenFoodFacts(input.trim());
+    if (offResult && offResult.name) {
+      // Máme dáta, len necháme AI priradiť kategóriu
       const apiKey = (process.env as any).API_KEY;
       const ai = new GoogleGenAI({ apiKey });
       try {
         const catResponse = await ai.models.generateContent({
           model: 'gemini-3-flash-preview',
-          contents: `Urči kategóriu zo zoznamu [${categoriesList}] pre: "${directResult.name}". Vráť IBA názov kategórie.`,
+          contents: `Priraď kategóriu [${categoriesList}] pre produkt: "${offResult.name}". Vráť len názov.`,
           config: { thinkingConfig: { thinkingBudget: 0 } }
         });
-        return { ...directResult, categoryName: catResponse.text.trim() };
+        return { ...offResult, categoryName: catResponse.text.trim() };
       } catch (e) {
-        return { ...directResult, categoryName: existingCategories[0].name };
+        return { ...offResult, categoryName: existingCategories[0].name };
       }
     }
   }
 
-  // 2. Priorita: Google Search fallback (pre Relax, Pfanner a iné, čo nie sú v OFF)
+  // Ak to nie je v OFF, použijeme Google Search Grounding
   const apiKey = (process.env as any).API_KEY;
   const ai = new GoogleGenAI({ apiKey });
   
-  const prompt = isBarcode 
-    ? `HĽADAJ NA WEBE PRODUKT PODĽA EAN: ${input.trim()}.
-       Zameraj sa na slovenské a české e-shopy s potravinami (Tesco, Potraviny Domov, Kosik).
-       Potrebujem presný názov (značka + typ) a balenie (napr. 1l, 250g).
-       Ak nič nenájdeš, skús odhadnúť podľa predvoľby (858=SK, 859=CZ).
-       Kategória zo zoznamu: [${categoriesList}].
+  // Prísny prompt pre vyhľadávanie
+  const searchPrompt = isBarcode 
+    ? `VYHĽADAJ NA GOOGLI PRESNÉ INFORMÁCIE PRE EAN KÓD: ${input.trim()}.
+       Zameraj sa na webe na slovenské e-shopy: potravinydomov.itesco.sk, kosik.sk, rohlik.cz, alebo lidl.sk.
+       Zisti: Presný názov produktu, Značku a Hmotnosť/Objem balenia.
+       DÔLEŽITÉ: Ak produkt na webe nenájdeš pod týmto EAN kódom, vráť v JSON "name": null. Nikdy si nič nevymýšľaj!
+       Kategória: jedna zo zoznamu [${categoriesList}].
        Odpovedaj JSONom v slovenčine.`
     : `Analyzuj text: "${input}". Vráť JSON (name, quantity, unit, categoryName).`;
 
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: prompt,
+      contents: searchPrompt,
       config: {
-        tools: isBarcode ? [{ googleSearch: {} }] : [],
+        tools: isBarcode ? [{ googleSearch: {} }] : [], // AKTIVÁCIA GOOGLE SEARCH
         responseMimeType: "application/json",
         thinkingConfig: { thinkingBudget: 0 },
         responseSchema: {
           type: Type.OBJECT,
           properties: {
-            name: { type: Type.STRING },
+            name: { type: Type.STRING, nullable: true },
             quantity: { type: Type.NUMBER },
             unit: { type: Type.STRING },
             categoryName: { type: Type.STRING }
@@ -112,9 +117,12 @@ export async function parseSmartEntry(input: string, existingCategories: Categor
       }
     });
     
-    return safeJsonParse(response.text);
+    const result = safeJsonParse(response.text);
+    // Ak AI nenašlo produkt na Google, vrátime null, aby sme neklamali používateľa
+    if (!result || !result.name || result.name.toLowerCase() === 'null') return null;
+    return result;
   } catch (error) {
-    console.error("Gemini Error:", error);
+    console.error("Search Grounding Error:", error);
     return null;
   }
 }
@@ -127,7 +135,7 @@ export async function getRecipeSuggestions(items: FoodItem[]): Promise<string | 
     .map(i => `${i.name} (${i.currentQuantity}${i.unit})`)
     .join(", ");
 
-  const prompt = `Zoznam zásob: ${stockInfo}. Navrhni 3 bleskové recepty v slovenčine. Max 2 vety na recept. Reaguj štýlovo a chutne.`;
+  const prompt = `Zoznam zásob: ${stockInfo}. Navrhni 3 bleskové recepty v slovenčine. Max 2 vety na recept.`;
 
   try {
     const response = await ai.models.generateContent({
