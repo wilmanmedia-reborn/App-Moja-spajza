@@ -20,6 +20,7 @@ interface Props {
 export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate, onAddCategory, editingItem, locations, categories }) => {
   const [showScanner, setShowScanner] = useState(false);
   const [isAiProcessing, setIsAiProcessing] = useState(false);
+  const [scannedCode, setScannedCode] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     category: '',
@@ -64,7 +65,10 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
   if (!isOpen) return null;
 
   const handleApplyResult = (result: any) => {
-    if (result) {
+    setIsAiProcessing(false);
+    setShowScanner(false);
+    
+    if (result && result.name) {
       let catId = formData.category;
       if (result.categoryName) {
         catId = onAddCategory(result.categoryName);
@@ -72,28 +76,25 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
 
       setFormData(prev => ({
         ...prev,
-        name: result.name || prev.name,
+        name: result.name,
         quantityPerPack: result.quantity || prev.quantityPerPack,
         unit: (result.unit?.toLowerCase() as Unit) || prev.unit,
-        category: catId,
-        isHomemade: result.isHomemade || false
+        category: catId
       }));
-      setShowScanner(false);
     } else {
-      alert("AI sa nepodarilo produkt rozpoznať podľa kódu. Zadajte údaje manuálne.");
+      alert(`Produkt s kódom ${scannedCode} sa nenašiel v bleskovej databáze. Zadajte názov ručne.`);
     }
   };
 
   const handleBarcodeScan = async (code: string) => {
+    setScannedCode(code);
     setIsAiProcessing(true);
     try {
       const result = await parseSmartEntry(code, categories);
       handleApplyResult(result);
     } catch (e: any) {
-      console.error(e);
-      alert("Chyba pri hľadaní produktu.");
-    } finally {
       setIsAiProcessing(false);
+      alert("Chyba spojenia s AI.");
     }
   };
 
@@ -127,14 +128,12 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
         <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] w-full max-w-md max-h-[90vh] shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800 flex flex-col">
           <div className="px-8 py-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-800/50 sticky top-0 z-10 shrink-0">
             <div>
-              <h2 className="text-2xl font-black text-slate-900 dark:text-white">
+              <h2 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">
                 {editingItem ? 'Upraviť' : 'Pridať zásoby'}
               </h2>
-              {isAiProcessing && <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest animate-pulse">Hľadám produkt...</p>}
+              {isAiProcessing && <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest animate-pulse">Bleskové vyhľadávanie...</p>}
             </div>
-            <button onClick={onClose} className="p-3 bg-white dark:bg-slate-800 text-slate-400 rounded-2xl border border-slate-100 dark:border-slate-700 active:scale-90 transition-transform">
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M6 18L18 6M6 6l12 12" /></svg>
-            </button>
+            <button onClick={onClose} className="p-3 bg-white dark:bg-slate-800 text-slate-400 rounded-2xl border border-slate-100 dark:border-slate-700">✕</button>
           </div>
 
           <div className="overflow-y-auto no-scrollbar flex-1 overscroll-contain">
@@ -145,7 +144,8 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
                   <input 
                     required disabled={isAiProcessing} type="text" value={formData.name}
                     onChange={e => setFormData({...formData, name: e.target.value})}
-                    className="flex-1 px-5 py-3 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white border-none rounded-2xl focus:ring-2 focus:ring-emerald-500 outline-none font-bold"
+                    placeholder="Názov produktu..."
+                    className="flex-1 px-5 py-3 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white border-none rounded-2xl outline-none font-bold"
                   />
                   {!editingItem && (
                     <button type="button" onClick={() => setShowScanner(true)} className="p-3.5 bg-emerald-600 text-white rounded-2xl shadow-lg active:scale-90 transition-transform">
@@ -153,18 +153,21 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
                     </button>
                   )}
                 </div>
+                {scannedCode && !formData.name && (
+                  <p className="text-[10px] text-slate-500 mt-2 font-bold uppercase tracking-widest">Skenovaný kód: {scannedCode}</p>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">Lokalita</label>
-                  <select value={formData.locationId} onChange={e => setFormData({...formData, locationId: e.target.value})} className="w-full px-5 py-3 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white rounded-2xl font-bold appearance-none border-none outline-none">
+                  <select value={formData.locationId} onChange={e => setFormData({...formData, locationId: e.target.value})} className="w-full px-5 py-3 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white rounded-2xl font-bold appearance-none outline-none">
                     {locations.map(l => <option key={l.id} value={l.id}>{l.icon} {l.name}</option>)}
                   </select>
                 </div>
                 <div>
                   <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">Kategória</label>
-                  <select value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} className="w-full px-5 py-3 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white rounded-2xl font-bold appearance-none border-none outline-none">
+                  <select value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} className="w-full px-5 py-3 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white rounded-2xl font-bold appearance-none outline-none">
                     {categories.map(c => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
                   </select>
                 </div>
@@ -172,26 +175,26 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
 
               <div className="p-5 bg-slate-50 dark:bg-slate-800/50 rounded-3xl border border-slate-200 dark:border-slate-800 space-y-4">
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="col-span-1">
+                  <div>
                     <label className="block text-[9px] font-black text-slate-400 mb-2 uppercase tracking-widest">Jednotka</label>
-                    <select value={formData.unit} onChange={e => setFormData({...formData, unit: e.target.value as Unit})} className="w-full px-3 py-3 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-2xl font-bold appearance-none text-center border border-slate-200 dark:border-slate-700 outline-none">
+                    <select value={formData.unit} onChange={e => setFormData({...formData, unit: e.target.value as Unit})} className="w-full px-3 py-3 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-xl font-bold appearance-none text-center border border-slate-200 dark:border-slate-700 outline-none">
                       {Object.values(Unit).map(u => <option key={u} value={u}>{u}</option>)}
                     </select>
                   </div>
-                  <div className="col-span-1">
+                  <div>
                     <label className="block text-[9px] font-black text-slate-400 mb-2 uppercase tracking-widest">Obsah 1ks</label>
-                    <input required={formData.unit !== Unit.KS} type="number" disabled={formData.unit === Unit.KS} value={formData.quantityPerPack} onChange={e => setFormData({...formData, quantityPerPack: Number(e.target.value)})} className="w-full px-3 py-3 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-2xl font-black text-center disabled:opacity-30 border border-slate-200 dark:border-slate-700 outline-none" />
+                    <input required={formData.unit !== Unit.KS} type="number" disabled={formData.unit === Unit.KS} value={formData.quantityPerPack} onChange={e => setFormData({...formData, quantityPerPack: Number(e.target.value)})} className="w-full px-3 py-3 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-xl font-black text-center disabled:opacity-30 border border-slate-200 dark:border-slate-700 outline-none" />
                   </div>
                 </div>
                 
                 <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-200 dark:border-slate-700">
                   <div>
                     <label className="block text-[9px] font-black text-emerald-600 mb-2 uppercase tracking-widest">AKTUÁLNY STAV (KS)</label>
-                    <input required type="number" value={formData.currentPacks} min="0" onChange={e => setFormData({...formData, currentPacks: Number(e.target.value)})} className="w-full px-3 py-3 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-900 dark:text-emerald-100 rounded-2xl font-black text-center focus:ring-2 focus:ring-emerald-500 outline-none border border-emerald-200 dark:border-emerald-800/50" />
+                    <input required type="number" value={formData.currentPacks} min="0" onChange={e => setFormData({...formData, currentPacks: Number(e.target.value)})} className="w-full px-3 py-3 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-900 dark:text-emerald-100 rounded-xl font-black text-center focus:ring-2 focus:ring-emerald-500 outline-none border border-emerald-200 dark:border-emerald-800/50" />
                   </div>
                   <div>
                     <label className="block text-[9px] font-black text-slate-400 mb-2 uppercase tracking-widest">CIEĽOVÝ STAV (KS)</label>
-                    <input required type="number" value={formData.targetPacks} min="1" onChange={e => setFormData({...formData, targetPacks: Number(e.target.value)})} className="w-full px-3 py-3 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-2xl font-black text-center focus:ring-2 focus:ring-emerald-500 outline-none border border-slate-200 dark:border-slate-700" />
+                    <input required type="number" value={formData.targetPacks} min="1" onChange={e => setFormData({...formData, targetPacks: Number(e.target.value)})} className="w-full px-3 py-3 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-xl font-black text-center focus:ring-2 focus:ring-emerald-500 outline-none border border-slate-200 dark:border-slate-700" />
                   </div>
                 </div>
               </div>
