@@ -18,7 +18,7 @@ export const BarcodeScanner: React.FC<Props> = ({ onScan, onClose, isAnalyzing }
   const [isTorchOn, setIsTorchOn] = useState(false);
   const scannerRef = useRef<any>(null);
   
-  const [containerId] = useState(() => "scanner-view-" + Math.random().toString(36).substr(2, 5));
+  const containerId = "qr-reader";
 
   useEffect(() => {
     let html5QrCode: any;
@@ -26,67 +26,62 @@ export const BarcodeScanner: React.FC<Props> = ({ onScan, onClose, isAnalyzing }
     const startScanner = async () => {
       try {
         if (typeof Html5Qrcode === 'undefined') {
-          setError("Skener nie je pripravený.");
+          setError("Skener nie je načítaný.");
           return;
         }
 
-        html5QrCode = new Html5Qrcode(containerId, { verbose: false });
+        html5QrCode = new Html5Qrcode(containerId);
         scannerRef.current = html5QrCode;
 
         const config = { 
-          fps: 25,
+          fps: 20,
           qrbox: (viewWidth: number, viewHeight: number) => {
-              const minDim = Math.min(viewWidth, viewHeight);
-              return { width: minDim * 0.85, height: minDim * 0.45 }; // Väčší obdĺžnik pre EAN
+              const width = viewWidth * 0.8;
+              const height = viewWidth * 0.45;
+              return { width, height };
           },
           aspectRatio: 1.0,
           formatsToSupport: [
             Html5QrcodeSupportedFormats.EAN_13,
             Html5QrcodeSupportedFormats.EAN_8,
             Html5QrcodeSupportedFormats.UPC_A,
-            Html5QrcodeSupportedFormats.UPC_E
+            Html5QrcodeSupportedFormats.UPC_E,
+            Html5QrcodeSupportedFormats.CODE_128
           ]
         };
 
         const onScanSuccess = (text: string) => {
           if (isAnalyzing) return;
-          if (navigator.vibrate) navigator.vibrate(80);
+          if (navigator.vibrate) navigator.vibrate(50);
           onScan(text);
         };
 
-        const cameras = await Html5Qrcode.getCameras();
-        if (cameras && cameras.length > 0) {
-          await html5QrCode.start(
-            { facingMode: "environment" }, 
-            config, 
-            onScanSuccess, 
-            () => {}
-          );
-        } else {
-          setError("Kamera nebola nájdená.");
-          return;
-        }
+        await html5QrCode.start(
+          { facingMode: "environment" }, 
+          config, 
+          onScanSuccess, 
+          () => {}
+        );
         
+        setIsStarted(true);
         try {
           const track = html5QrCode.getRunningTrackCapabilities();
           if (track && track.torch) setHasTorch(true);
         } catch (e) {}
-
-        setIsStarted(true);
       } catch (err: any) {
-        setError("Nepodarilo sa spustiť kameru.");
+        setError("Prístup ku kamere bol zamietnutý.");
       }
     };
 
-    const timer = setTimeout(startScanner, 300);
+    const timer = setTimeout(startScanner, 200);
 
     return () => {
       clearTimeout(timer);
-      if (html5QrCode) {
+      if (html5QrCode && html5QrCode.isScanning) {
         html5QrCode.stop().catch(() => {});
       }
     };
-  }, [containerId]); 
+  }, []); 
 
   const toggleTorch = async () => {
     if (!scannerRef.current || !hasTorch) return;
@@ -97,95 +92,103 @@ export const BarcodeScanner: React.FC<Props> = ({ onScan, onClose, isAnalyzing }
     } catch (e) {}
   };
 
+  const handleManualSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (manualCode.trim() && !isAnalyzing) {
+      onScan(manualCode.trim());
+    }
+  };
+
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/95">
-      <div className="bg-white dark:bg-slate-900 w-full h-full sm:h-auto sm:max-h-[90vh] sm:rounded-[3rem] sm:max-w-md overflow-hidden relative shadow-2xl flex flex-col">
-        
-        {/* Header */}
-        <div className="p-7 flex justify-between items-center z-[60] shrink-0 border-b border-slate-100 dark:border-white/5 bg-white dark:bg-slate-900">
-          <div>
-            <h3 className="font-black text-slate-900 dark:text-white text-xl uppercase tracking-tighter">Skenovanie</h3>
-            <p className="text-[9px] text-emerald-500 font-black uppercase tracking-widest mt-0.5">Dual-Mode AI Engine Aktívny</p>
-          </div>
-          <button onClick={onClose} className="px-5 py-3 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-2xl active:scale-95 transition-all font-black uppercase text-[10px] tracking-widest">Zrušiť</button>
-        </div>
-        
-        {/* Scanner Viewport */}
-        <div className="relative aspect-square sm:aspect-video bg-black overflow-hidden shrink-0">
-          <div id={containerId} className="w-full h-full"></div>
-          
-          {/* Torch Button */}
-          <div className="absolute top-6 right-6 z-[60]">
-            {hasTorch && isStarted && !isAnalyzing && (
-              <button 
-                onClick={toggleTorch}
-                className={`p-5 rounded-3xl shadow-2xl backdrop-blur-md border ${isTorchOn ? 'bg-amber-500 border-amber-400 text-white' : 'bg-white/10 border-white/20 text-white'} transition-all active:scale-90`}
-              >
-                <span className="text-xl">{isTorchOn ? '🔦' : '⚡'}</span>
-              </button>
-            )}
-          </div>
-
-          {/* Scanner Overlay */}
-          {!isAnalyzing && !error && (
-            <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center z-50">
-              <div className="w-[85%] h-[40%] relative border-2 border-white/20 rounded-3xl">
-                <div className="absolute top-0 left-0 w-12 h-12 border-t-8 border-l-8 border-emerald-500 rounded-tl-3xl"></div>
-                <div className="absolute top-0 right-0 w-12 h-12 border-t-8 border-r-8 border-emerald-500 rounded-tr-3xl"></div>
-                <div className="absolute bottom-0 left-0 w-12 h-12 border-b-8 border-l-8 border-emerald-500 rounded-bl-3xl"></div>
-                <div className="absolute bottom-0 right-0 w-12 h-12 border-b-8 border-r-8 border-emerald-500 rounded-br-3xl"></div>
-                
-                {/* Laser Line */}
-                <div className="absolute left-6 right-6 h-[3px] bg-emerald-400 shadow-[0_0_25px_#10b981] animate-scan opacity-80"></div>
-              </div>
-              <p className="mt-10 text-white/50 text-[10px] font-black uppercase tracking-[0.25em] bg-black/50 px-6 py-2.5 rounded-full backdrop-blur-md border border-white/10">Zamerajte čiarový kód</p>
-            </div>
-          )}
-
-          {/* Analyzing Overlay */}
-          {isAnalyzing && (
-            <div className="absolute inset-0 bg-slate-950/95 backdrop-blur-2xl z-[70] flex flex-col items-center justify-center text-center p-12">
-              <div className="relative mb-8">
-                <div className="w-20 h-20 border-4 border-emerald-500/10 border-t-emerald-500 rounded-full animate-spin"></div>
-                <div className="absolute inset-0 flex items-center justify-center text-4xl animate-pulse">🔍</div>
-              </div>
-              <h4 className="text-white font-black text-2xl mb-3 uppercase tracking-tighter">Hlboká analýza</h4>
-              <p className="text-emerald-500 text-[11px] font-black uppercase tracking-widest mb-4">Google Search aktívny</p>
-              <p className="text-slate-400 text-[9px] font-black uppercase tracking-widest leading-relaxed opacity-60">
-                Prehľadávam databázy Tesco,<br/>
-                Kraj, Lidl a Rohlik...
-              </p>
-            </div>
-          )}
-        </div>
-
-        {/* Manual Input Footer */}
-        <div className="p-8 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-white/5 flex-1">
-           <form 
-            onSubmit={(e) => { e.preventDefault(); if(manualCode.trim()) { onScan(manualCode); } }} 
-            className="flex flex-col gap-4"
-          >
-            <div className="relative">
-              <input 
-                type="number" inputMode="numeric"
-                value={manualCode} onChange={e => setManualCode(e.target.value)}
-                placeholder="Zadať kód ručne (EAN)..."
-                className="w-full px-7 py-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-3xl text-sm font-black dark:text-white outline-none focus:ring-4 focus:ring-emerald-500/20 transition-all shadow-inner"
-              />
-            </div>
-            <button 
-              type="submit"
-              disabled={!manualCode.trim() || isAnalyzing}
-              className="w-full py-5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-[2rem] font-black text-xs uppercase tracking-[0.1em] shadow-xl shadow-emerald-600/20 disabled:opacity-30 transition-all active:scale-95"
-            >
-              Vyhľadať produkt
+    <div className="fixed inset-0 z-[100] bg-black flex flex-col">
+      {/* Top Bar - Kalorické Tabuľky Style */}
+      <div className="safe-top bg-black/40 backdrop-blur-md flex justify-between items-center p-4 z-50">
+        <button onClick={onClose} className="text-white font-bold px-4 py-2 uppercase text-xs tracking-widest">
+          Zrušiť
+        </button>
+        <h2 className="text-white font-black uppercase text-sm tracking-tighter">Skenovanie</h2>
+        <div className="w-16 flex justify-end">
+          {hasTorch && (
+            <button onClick={toggleTorch} className={`p-2 rounded-full ${isTorchOn ? 'text-amber-400' : 'text-white'}`}>
+              <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
             </button>
-          </form>
-          <p className="text-center mt-6 text-[9px] font-black text-slate-400 uppercase tracking-widest leading-tight">
-            Tip: Pre Relax Benefit alebo Saguaro vodu<br/>zadajte EAN kód pod čiarami.
-          </p>
+          )}
         </div>
       </div>
+
+      {/* Main Viewport */}
+      <div className="relative flex-1 bg-black overflow-hidden flex items-center justify-center">
+        <div id={containerId} className="w-full h-full object-cover"></div>
+        
+        {/* The "Kalorické Tabuľky" Box Overlay */}
+        {!isAnalyzing && (
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center pointer-events-none">
+            <div className="w-[80%] aspect-[1.8/1] relative border-2 border-white/30 rounded-2xl shadow-[0_0_0_1000px_rgba(0,0,0,0.5)]">
+              {/* Corner Accents */}
+              <div className="absolute -top-1 -left-1 w-8 h-8 border-t-4 border-l-4 border-emerald-500 rounded-tl-xl"></div>
+              <div className="absolute -top-1 -right-1 w-8 h-8 border-t-4 border-r-4 border-emerald-500 rounded-tr-xl"></div>
+              <div className="absolute -bottom-1 -left-1 w-8 h-8 border-b-4 border-l-4 border-emerald-500 rounded-bl-xl"></div>
+              <div className="absolute -bottom-1 -right-1 w-8 h-8 border-b-4 border-r-4 border-emerald-500 rounded-br-xl"></div>
+              
+              {/* Red Scan Line */}
+              <div className="absolute inset-x-4 h-[2px] bg-red-500/80 shadow-[0_0_10px_red] top-1/2 -translate-y-1/2 animate-[scan-line_2s_infinite]"></div>
+            </div>
+            <p className="mt-8 text-white/70 text-[10px] font-black uppercase tracking-[0.2em]">Zamerajte čiarový kód</p>
+          </div>
+        )}
+
+        {/* Loading Overlay */}
+        {isAnalyzing && (
+          <div className="absolute inset-0 z-50 bg-slate-900/90 backdrop-blur-md flex flex-col items-center justify-center text-center p-10">
+            <div className="w-16 h-16 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin mb-6"></div>
+            <h3 className="text-white font-black text-xl uppercase tracking-tighter mb-2">Vyhľadávam produkt</h3>
+            <p className="text-emerald-500 text-[10px] font-black uppercase tracking-widest animate-pulse">Prehľadávam Tesco, Lidl a web...</p>
+          </div>
+        )}
+
+        {error && (
+          <div className="absolute inset-0 z-50 bg-black flex flex-col items-center justify-center p-10 text-center">
+            <p className="text-red-500 font-bold mb-6">{error}</p>
+            <button onClick={onClose} className="bg-white text-black px-8 py-3 rounded-full font-black uppercase text-xs">Zatvoriť</button>
+          </div>
+        )}
+      </div>
+
+      {/* Manual Input Area - Clean Bottom Bar */}
+      <div className="bg-slate-900 border-t border-white/10 p-6 pb-10">
+        <form onSubmit={handleManualSearch} className="flex flex-col gap-4 max-w-sm mx-auto">
+          <div className="relative">
+            <input 
+              type="text" 
+              inputMode="numeric"
+              value={manualCode}
+              onChange={e => setManualCode(e.target.value)}
+              placeholder="Zadať kód ručne (EAN)..."
+              className="w-full px-6 py-4 bg-white/5 border border-white/10 rounded-2xl text-white font-bold text-center outline-none focus:ring-2 focus:ring-emerald-500 transition-all"
+            />
+          </div>
+          <button 
+            type="submit"
+            disabled={!manualCode.trim() || isAnalyzing}
+            className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 text-white font-black rounded-2xl uppercase text-[11px] tracking-widest shadow-xl transition-all active:scale-95"
+          >
+            {isAnalyzing ? 'Hľadám...' : 'Vyhľadať produkt'}
+          </button>
+        </form>
+        <p className="text-center mt-4 text-[9px] font-bold text-slate-500 uppercase tracking-tighter opacity-50">
+          Tip: Pre lokálne produkty (Saguaro, Relax) zadajte kód ručne ak skener zlyhá.
+        </p>
+      </div>
+
+      <style>{`
+        @keyframes scan-line {
+          0%, 100% { transform: translateY(-40px); opacity: 0.3; }
+          50% { transform: translateY(40px); opacity: 1; }
+        }
+        .safe-top {
+          padding-top: env(safe-area-inset-top, 0px);
+        }
+      `}</style>
     </div>
   );
 };

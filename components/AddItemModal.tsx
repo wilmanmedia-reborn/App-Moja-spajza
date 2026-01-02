@@ -82,7 +82,7 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
         category: catId
       }));
     } else {
-      alert(`Produkt s kódom ${codeUsed} sa nepodarilo automaticky nájsť v databázach ani na webe. Zadajte názov produktu ručne.`);
+      alert(`Kód ${codeUsed} sa nepodarilo nájsť. Skúste ho zadať ručne alebo skontrolovať pripojenie.`);
     }
   };
 
@@ -134,7 +134,7 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
               {isAiProcessing && (
                 <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest animate-pulse flex items-center gap-1.5 mt-1">
                   <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span>
-                  Hlboká analýza Google & Lidl...
+                  Analýza webov (Relax, Saguaro)...
                 </p>
               )}
             </div>
@@ -161,7 +161,7 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
                 {(scannedCode || formData.name) && !isAiProcessing && (
                   <div className="flex items-center gap-2 mt-2">
                     <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Kód: {scannedCode || 'Zadaný ručne'}</span>
-                    <button type="button" onClick={() => setShowScanner(true)} className="text-[9px] text-emerald-500 font-black uppercase underline tracking-tighter ml-auto">Zmeniť kód</button>
+                    <button type="button" onClick={() => setShowScanner(true)} className="text-[9px] text-emerald-500 font-black uppercase underline tracking-tighter ml-auto">Prekenovať</button>
                   </div>
                 )}
               </div>

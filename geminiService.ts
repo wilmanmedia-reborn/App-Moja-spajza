@@ -18,7 +18,7 @@ function safeJsonParse(text: string | undefined) {
 }
 
 /**
- * KROK 1: OpenFoodFacts (Globálna databáza)
+ * Rýchla kontrola v OpenFoodFacts (funguje na globálne veci ako Nutella alebo Barilla)
  */
 async function fetchFromOpenFoodFacts(barcode: string) {
   try {
@@ -39,55 +39,49 @@ async function fetchFromOpenFoodFacts(barcode: string) {
 }
 
 /**
- * KROK 2: DEEP SEARCH (Google Search Grounding pre lokálne SK/CZ značky)
+ * HLAVNÁ ANALÝZA: Ak zlyhá OFF, nastupuje Google Search Grounding
  */
 export async function parseSmartEntry(input: string, existingCategories: Category[]) {
   const barcode = input.trim();
   const isBarcode = /^\d+$/.test(barcode);
   const categoriesList = existingCategories.map(c => c.name).join(", ");
   
-  // Detekcia Lidl kódov
-  const isLidlCode = isBarcode && (barcode.startsWith('20') || barcode.startsWith('405') || barcode.length <= 8);
+  // Identifikácia Lidl kódov (často 20xxxxxx alebo 405xxxxxx)
+  const isLidlInternal = isBarcode && (barcode.startsWith('20') || (barcode.startsWith('405') && barcode.length <= 13));
 
-  // Skúsime najprv OFF (rýchle)
   let initialData = null;
   if (isBarcode) {
     initialData = await fetchFromOpenFoodFacts(barcode);
-    // Ak OFF nájde presný názov (dlhší ako 10 znakov a nie je to len "Water")
-    if (initialData && initialData.name.length > 10 && !['voda', 'water', 'dzus', 'juice'].includes(initialData.name.toLowerCase())) {
-       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-       try {
-         const catRes = await ai.models.generateContent({
-           model: 'gemini-3-flash-preview',
-           contents: `Priraď kategóriu [${categoriesList}] k produktu: "${initialData.name}". Odpovedz len názvom kategórie.`,
-         });
-         return { ...initialData, categoryName: catRes.text.trim() };
-       } catch (e) {}
+    // Ak OFF našiel kvalitný názov, ktorý nie je len "Water", vrátime ho rýchlo
+    if (initialData && initialData.name.length > 8 && !['voda', 'water', 'dzus', 'juice'].includes(initialData.name.toLowerCase())) {
+       return { ...initialData, categoryName: existingCategories[0].name };
     }
   }
 
-  // AGRESÍVNY DEEP SEARCH: Gemini teraz MUSÍ použiť Google Search
+  // AGRESÍVNY DEEP SEARCH MÓD
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   const searchPrompt = isBarcode 
-    ? `SI POTRAVINOVÝ DETEKTÍV. Nájdi presné informácie pre EAN kód: ${barcode}.
+    ? `SI EXPERT NA POTRAVINY V SR/ČR. Nájdi produkt pre EAN kód: ${barcode}.
        
-       POKYNY PRE VYHĽADÁVANIE:
-       1. Prehľadaj slovenské e-shopy: potravinydomov.itesco.sk, lidl.sk, nakupujvlidli.sk, rohlik.cz, kosik.sk, krajpotravin.sk.
-       2. Ak je kód ${barcode} a je to ${isLidlCode ? 'Lidl značka (Saguaro, Pilos, Freshona)' : 'akýkoľvek produkt'}, extrahuj presný názov a gramáž.
-       3. Príklad: Ak nájdeš "Relax Benefit Jablko 1l", vráť to ako názov.
-       4. Príklad: Ak nájdeš "Saguaro jemne perlivá 1.5l", vráť to ako názov.
+       MIESTA NA HĽADANIE:
+       1. Ak je to Lidl kód (Saguaro, Pilos, Freshona, Argus), hľadaj na lidl.sk alebo nakupujvlidli.sk.
+       2. Inak hľadaj na: Tesco Potraviny Domov SK, Rohlik.cz, Kosik.sk, Potraviny Domov.
+       3. Hľadaj aj v obrázkoch a katalógoch (napr. Relax džúsy, Pfanner, minerálky).
        
-       Vráť JSON v slovenskom jazyku:
+       POKYNY:
+       - Musíš nájsť presný názov a gramáž (napr. "Relax Jablko 100% 1l").
+       - Priraď kategóriu zo zoznamu: [${categoriesList}].
+       - Ak na Google vidíš výsledok, NESMIEŠ vrátiť null.
+       
+       Vráť JSON:
        {
-         "name": "Značka + Celý Názov Produktu",
-         "quantity": číslo (hmotnosť/objem),
+         "name": "Značka + Názov Produktu",
+         "quantity": číslo,
          "unit": "g/kg/ml/l/ks",
-         "categoryName": "jedna z týchto: [${categoriesList}]"
-       }
-       
-       DÔLEŽITÉ: Ak na Google vidíš akúkoľvek relevatnú stránku s týmto kódom, použi ju. Nevracaj prázdny výsledok!`
-    : `Identifikuj produkt a kategóriu z textu: "${input}". Vyber kategóriu z [${categoriesList}]. Vráť JSON.`;
+         "categoryName": "jedna zo zoznamu"
+       }`
+    : `Identifikuj produkt z textu: "${input}". Vyber kategóriu z [${categoriesList}]. Vráť JSON.`;
 
   try {
     const response = await ai.models.generateContent({
@@ -111,15 +105,16 @@ export async function parseSmartEntry(input: string, existingCategories: Categor
     });
     
     const result = safeJsonParse(response.text);
-    if (!result || !result.name || result.name === 'null' || result.name.length < 3) {
-      if (initialData) return { ...initialData, categoryName: existingCategories[0].name };
-      return null;
+    // Ak Deep Search našiel čokoľvek lepšie ako nič, berieme to
+    if (result && result.name && result.name !== 'null' && result.name.length > 2) {
+      return result;
     }
-    return result;
+    
+    // Ak Deep Search zlyhal, ale máme aspoň niečo z OFF
+    return initialData;
   } catch (error) {
-    console.error("Deep Search Error:", error);
-    if (initialData) return { ...initialData, categoryName: existingCategories[0].name };
-    return null;
+    console.error("Deep Search zlyhal:", error);
+    return initialData;
   }
 }
 
@@ -129,8 +124,8 @@ export async function getRecipeSuggestions(items: FoodItem[]): Promise<string | 
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: `Mám v špajzi: ${stockInfo}. Navrhni 3 bleskové recepty po slovensky. Buď stručný.`,
+      contents: `Mám v špajzi: ${stockInfo}. Navrhni 3 bleskové recepty po slovensky. Buď stručný a vtipný.`,
     });
     return response.text ?? null;
-  } catch (e) { return "Skúste neskôr."; }
+  } catch (e) { return "Nepodarilo sa uvariť recepty."; }
 }
