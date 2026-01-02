@@ -82,7 +82,8 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
         category: catId
       }));
     } else {
-      alert(`Kód ${codeUsed} sa nenašiel v databáze ani na webe. Zadajte názov produktu ručne.`);
+      // Tu opravujeme zobrazenie kódu v chybovej hláške
+      alert(`Produkt s kód ${codeUsed} sa nepodarilo automaticky rozpoznať. Prosím, zadajte názov ručne.`);
     }
   };
 
@@ -94,7 +95,7 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
       handleApplyResult(result, code);
     } catch (e: any) {
       setIsAiProcessing(false);
-      alert("Chyba spojenia pri rozpoznávaní.");
+      alert("Chyba spojenia pri analýze produktu.");
     }
   };
 
@@ -134,7 +135,7 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
               {isAiProcessing && (
                 <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest animate-pulse flex items-center gap-1.5 mt-1">
                   <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span>
-                  Analýza webov a databáz...
+                  Hlboká analýza Google & Lidl...
                 </p>
               )}
             </div>
@@ -158,10 +159,10 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
                     </button>
                   )}
                 </div>
-                {scannedCode && (
+                {(scannedCode || formData.name) && !isAiProcessing && (
                   <div className="flex items-center gap-2 mt-2">
-                    <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest">EAN: {scannedCode}</span>
-                    <button type="button" onClick={() => handleBarcodeScan(scannedCode)} className="text-[9px] text-emerald-500 font-black uppercase underline tracking-tighter">Skúsiť znova</button>
+                    <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Kód: {scannedCode || 'Zadaný ručne'}</span>
+                    <button type="button" onClick={() => setShowScanner(true)} className="text-[9px] text-emerald-500 font-black uppercase underline tracking-tighter ml-auto">Zmeniť kód</button>
                   </div>
                 )}
               </div>
