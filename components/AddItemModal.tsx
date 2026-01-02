@@ -64,7 +64,7 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
 
   if (!isOpen) return null;
 
-  const handleApplyResult = (result: any) => {
+  const handleApplyResult = (result: any, codeUsed: string) => {
     setIsAiProcessing(false);
     setShowScanner(false);
     
@@ -82,7 +82,7 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
         category: catId
       }));
     } else {
-      alert(`Produkt s kódom ${scannedCode} sa nenašiel v bleskovej databáze. Zadajte názov ručne.`);
+      alert(`Produkt s kódom ${codeUsed} sa nepodarilo automaticky rozpoznať. Prosím, zadajte názov ručne.`);
     }
   };
 
@@ -91,10 +91,10 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
     setIsAiProcessing(true);
     try {
       const result = await parseSmartEntry(code, categories);
-      handleApplyResult(result);
+      handleApplyResult(result, code);
     } catch (e: any) {
       setIsAiProcessing(false);
-      alert("Chyba spojenia s AI.");
+      alert("Problém s pripojením k inteligentnej databáze.");
     }
   };
 
@@ -125,13 +125,13 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
   return (
     <>
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
-        <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] w-full max-w-md max-h-[90vh] shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800 flex flex-col">
+        <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] w-full max-w-md max-h-[90vh] shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800 flex flex-col animate-in fade-in zoom-in duration-200">
           <div className="px-8 py-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-800/50 sticky top-0 z-10 shrink-0">
             <div>
               <h2 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">
                 {editingItem ? 'Upraviť' : 'Pridať zásoby'}
               </h2>
-              {isAiProcessing && <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest animate-pulse">Bleskové vyhľadávanie...</p>}
+              {isAiProcessing && <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest animate-pulse">Prehľadávam Google & Databázy...</p>}
             </div>
             <button onClick={onClose} className="p-3 bg-white dark:bg-slate-800 text-slate-400 rounded-2xl border border-slate-100 dark:border-slate-700">✕</button>
           </div>
@@ -145,16 +145,16 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
                     required disabled={isAiProcessing} type="text" value={formData.name}
                     onChange={e => setFormData({...formData, name: e.target.value})}
                     placeholder="Názov produktu..."
-                    className="flex-1 px-5 py-3 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white border-none rounded-2xl outline-none font-bold"
+                    className="flex-1 px-5 py-3 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white border-none rounded-2xl outline-none font-bold placeholder:text-slate-400 dark:placeholder:text-slate-600"
                   />
                   {!editingItem && (
-                    <button type="button" onClick={() => setShowScanner(true)} className="p-3.5 bg-emerald-600 text-white rounded-2xl shadow-lg active:scale-90 transition-transform">
+                    <button type="button" onClick={() => setShowScanner(true)} className="p-3.5 bg-emerald-600 text-white rounded-2xl shadow-lg active:scale-90 transition-transform flex items-center justify-center">
                       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v1m-3.322 3.322l-.707.707M5 12h1m3.322 3.322l-.707.707M12 19v1m3.322-3.322l.707.707M19 12h1m-3.322-3.322l.707-.707M12 12a4 4 0 110-8 4 4 0 010 8z" /></svg>
                     </button>
                   )}
                 </div>
-                {scannedCode && !formData.name && (
-                  <p className="text-[10px] text-slate-500 mt-2 font-bold uppercase tracking-widest">Skenovaný kód: {scannedCode}</p>
+                {scannedCode && (
+                  <p className="text-[10px] text-slate-400 mt-2 font-bold uppercase tracking-widest">Kód: {scannedCode}</p>
                 )}
               </div>
 
@@ -183,7 +183,7 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
                   </div>
                   <div>
                     <label className="block text-[9px] font-black text-slate-400 mb-2 uppercase tracking-widest">Obsah 1ks</label>
-                    <input required={formData.unit !== Unit.KS} type="number" disabled={formData.unit === Unit.KS} value={formData.quantityPerPack} onChange={e => setFormData({...formData, quantityPerPack: Number(e.target.value)})} className="w-full px-3 py-3 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-xl font-black text-center disabled:opacity-30 border border-slate-200 dark:border-slate-700 outline-none" />
+                    <input required={formData.unit !== Unit.KS} type="number" step="any" disabled={formData.unit === Unit.KS} value={formData.quantityPerPack} onChange={e => setFormData({...formData, quantityPerPack: Number(e.target.value)})} className="w-full px-3 py-3 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-xl font-black text-center disabled:opacity-30 border border-slate-200 dark:border-slate-700 outline-none" />
                   </div>
                 </div>
                 
@@ -194,9 +194,27 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
                   </div>
                   <div>
                     <label className="block text-[9px] font-black text-slate-400 mb-2 uppercase tracking-widest">CIEĽOVÝ STAV (KS)</label>
-                    <input required type="number" value={formData.targetPacks} min="1" onChange={e => setFormData({...formData, targetPacks: Number(e.target.value)})} className="w-full px-3 py-3 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-xl font-black text-center focus:ring-2 focus:ring-emerald-500 outline-none border border-slate-200 dark:border-slate-700" />
+                    <input required type="number" value={formData.targetPacks} min="1" onChange={e => setFormData({...formData, targetPacks: Number(e.target.value)})} className="w-full px-3 py-3 bg-white dark:bg-slate-900 dark:text-white rounded-xl font-black text-center focus:ring-2 focus:ring-emerald-500 outline-none border border-slate-200 dark:border-slate-700" />
                   </div>
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">Dátum expirácie (nepovinné)</label>
+                <input 
+                  type="date" value={formData.expiryDate}
+                  onChange={e => setFormData({...formData, expiryDate: e.target.value})}
+                  className="w-full px-5 py-3 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white border-none rounded-2xl outline-none font-bold"
+                />
+              </div>
+
+              <div className="flex items-center gap-3 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl">
+                <input 
+                  type="checkbox" id="isHomemade" checked={formData.isHomemade}
+                  onChange={e => setFormData({...formData, isHomemade: e.target.checked})}
+                  className="w-5 h-5 accent-emerald-600"
+                />
+                <label htmlFor="isHomemade" className="text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-widest cursor-pointer">Domáci výrobok / Vlastné</label>
               </div>
 
               <div>

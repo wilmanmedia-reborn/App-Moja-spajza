@@ -17,39 +17,36 @@ function safeJsonParse(text: string | undefined) {
   }
 }
 
-/**
- * 1. KROK: Priame volanie databázy (najrýchlejšie a najpresnejšie)
- */
 async function fetchFromOpenFoodFacts(barcode: string) {
   try {
-    // Skúsime globálnu databázu s preferenciou slovenských názvov
-    const response = await fetch(`https://world.openfoodfacts.org/api/v2/product/${barcode}.json?fields=product_name,brands,quantity,product_name_sk,product_name_cs,product_name_en`);
+    const response = await fetch(`https://world.openfoodfacts.org/api/v2/product/${barcode}.json?fields=product_name,brands,quantity,product_name_sk,product_name_cs,product_name_en,net_weight_unit,net_weight_value`);
     const data = await response.json();
     
     if (data.status === 1 && data.product) {
       const p = data.product;
       const name = p.product_name_sk || p.product_name_cs || p.product_name || p.product_name_en || "";
       const brand = p.brands ? p.brands.split(',')[0] : "";
-      const fullName = brand && !name.includes(brand) ? `${brand} ${name}` : name;
+      const fullName = brand && !name.toLowerCase().includes(brand.toLowerCase()) ? `${brand} ${name}` : name;
       
       let quantity = 1;
       let unit = 'ks';
       
-      if (p.quantity) {
-        // Extrakcia napr. "1 l" -> 1, "l"
-        const match = p.quantity.match(/(\d+(?:[\.,]\d+)?)\s*([a-zA-Z]+)/);
-        if (match) {
-          quantity = parseFloat(match[1].replace(',', '.'));
-          const u = match[2].toLowerCase();
-          if (['g', 'kg', 'ml', 'l'].includes(u)) unit = u;
-        }
+      // Pokročilejšia extrakcia gramáže
+      const weightStr = p.quantity || "";
+      const match = weightStr.match(/(\d+(?:[\.,]\d+)?)\s*([a-zA-Z]+)/);
+      if (match) {
+        quantity = parseFloat(match[1].replace(',', '.'));
+        const u = match[2].toLowerCase();
+        if (['g', 'kg', 'ml', 'l'].includes(u)) unit = u;
+      } else if (p.net_weight_value) {
+        quantity = parseFloat(p.net_weight_value);
+        unit = p.net_weight_unit?.toLowerCase() || 'g';
       }
 
       return {
         name: fullName.trim(),
         quantity: quantity,
-        unit: unit,
-        confidence: 1.0 // 100% istota z databázy
+        unit: unit
       };
     }
     return null;
@@ -62,17 +59,16 @@ export async function parseSmartEntry(input: string, existingCategories: Categor
   const isBarcode = /^\d{8,14}$/.test(input.trim());
   const categoriesList = existingCategories.map(c => c.name).join(", ");
   
-  // 1. Priorita: Databáza (Bleskové, žiadna AI)
+  // 1. Priorita: Rýchla databáza
   if (isBarcode) {
     const directResult = await fetchFromOpenFoodFacts(input.trim());
-    if (directResult) {
-      // Máme meno, len necháme AI bleskovo určiť kategóriu (to Flash nepokazí)
+    if (directResult && directResult.name) {
       const apiKey = (process.env as any).API_KEY;
       const ai = new GoogleGenAI({ apiKey });
       try {
         const catResponse = await ai.models.generateContent({
           model: 'gemini-3-flash-preview',
-          contents: `Urči kategóriu zo zoznamu [${categoriesList}] pre: "${directResult.name}". Vráť iba názov kategórie.`,
+          contents: `Urči kategóriu zo zoznamu [${categoriesList}] pre: "${directResult.name}". Vráť IBA názov kategórie.`,
           config: { thinkingConfig: { thinkingBudget: 0 } }
         });
         return { ...directResult, categoryName: catResponse.text.trim() };
@@ -82,16 +78,17 @@ export async function parseSmartEntry(input: string, existingCategories: Categor
     }
   }
 
-  // 2. Priorita: Ak to nie je v DB, použijeme Gemini ALE s Google Search, aby to bolo presné
+  // 2. Priorita: Google Search fallback (pre Relax, Pfanner a iné, čo nie sú v OFF)
   const apiKey = (process.env as any).API_KEY;
   const ai = new GoogleGenAI({ apiKey });
   
   const prompt = isBarcode 
-    ? `VYHĽADAJ NA GOOGLI EAN KÓD: ${input.trim()}.
-       Úloha: Zisti presný názov produktu a balenie.
-       Dôležité: Ak produkt na webe nenájdeš, vráť v JSON "name": null. Nikdy si nevymýšľaj "Ryžu" ani nič iné.
-       Kategória: jedna z [${categoriesList}].
-       Odpovedaj JSONom.`
+    ? `HĽADAJ NA WEBE PRODUKT PODĽA EAN: ${input.trim()}.
+       Zameraj sa na slovenské a české e-shopy s potravinami (Tesco, Potraviny Domov, Kosik).
+       Potrebujem presný názov (značka + typ) a balenie (napr. 1l, 250g).
+       Ak nič nenájdeš, skús odhadnúť podľa predvoľby (858=SK, 859=CZ).
+       Kategória zo zoznamu: [${categoriesList}].
+       Odpovedaj JSONom v slovenčine.`
     : `Analyzuj text: "${input}". Vráť JSON (name, quantity, unit, categoryName).`;
 
   try {
@@ -99,13 +96,13 @@ export async function parseSmartEntry(input: string, existingCategories: Categor
       model: 'gemini-3-flash-preview',
       contents: prompt,
       config: {
-        tools: isBarcode ? [{ googleSearch: {} }] : [], // Search len pre EAN
+        tools: isBarcode ? [{ googleSearch: {} }] : [],
         responseMimeType: "application/json",
         thinkingConfig: { thinkingBudget: 0 },
         responseSchema: {
           type: Type.OBJECT,
           properties: {
-            name: { type: Type.STRING, nullable: true },
+            name: { type: Type.STRING },
             quantity: { type: Type.NUMBER },
             unit: { type: Type.STRING },
             categoryName: { type: Type.STRING }
@@ -115,11 +112,9 @@ export async function parseSmartEntry(input: string, existingCategories: Categor
       }
     });
     
-    const result = safeJsonParse(response.text);
-    // Ak AI nič nenašlo na webe, radšej vrátime null ako blbosť
-    if (result && !result.name) return null;
-    return result;
+    return safeJsonParse(response.text);
   } catch (error) {
+    console.error("Gemini Error:", error);
     return null;
   }
 }
@@ -132,7 +127,7 @@ export async function getRecipeSuggestions(items: FoodItem[]): Promise<string | 
     .map(i => `${i.name} (${i.currentQuantity}${i.unit})`)
     .join(", ");
 
-  const prompt = `Zoznam zásob: ${stockInfo}. Navrhni 3 bleskové recepty v slovenčine. Max 2 vety na recept.`;
+  const prompt = `Zoznam zásob: ${stockInfo}. Navrhni 3 bleskové recepty v slovenčine. Max 2 vety na recept. Reaguj štýlovo a chutne.`;
 
   try {
     const response = await ai.models.generateContent({
