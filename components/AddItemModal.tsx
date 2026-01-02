@@ -82,7 +82,7 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
         category: catId
       }));
     } else {
-      alert(`Kód ${codeUsed} sa nepodarilo nájsť. Skúste ho zadať ručne alebo skontrolovať pripojenie.`);
+      alert(`Produkt s kódom ${codeUsed} sa nenašiel v žiadnej databáze ani na slovenskom webe. Zadajte názov produktu ručne.`);
     }
   };
 
@@ -134,7 +134,7 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
               {isAiProcessing && (
                 <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest animate-pulse flex items-center gap-1.5 mt-1">
                   <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span>
-                  Analýza webov (Relax, Saguaro)...
+                  Analýza všetkých e-shopov (SK/CZ)...
                 </p>
               )}
             </div>
