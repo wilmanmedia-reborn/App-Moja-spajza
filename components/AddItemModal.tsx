@@ -68,7 +68,7 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
     setIsAiProcessing(false);
     setShowScanner(false);
     
-    if (result && result.name) {
+    if (result && result.name && result.name !== 'null') {
       let catId = formData.category;
       if (result.categoryName) {
         catId = onAddCategory(result.categoryName);
@@ -82,7 +82,7 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
         category: catId
       }));
     } else {
-      alert(`Produkt s kódom ${codeUsed} sa nepodarilo automaticky rozpoznať. Prosím, zadajte názov ručne.`);
+      alert(`Kód ${codeUsed} sa nenašiel v databáze ani na webe. Zadajte názov produktu ručne.`);
     }
   };
 
@@ -94,7 +94,7 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
       handleApplyResult(result, code);
     } catch (e: any) {
       setIsAiProcessing(false);
-      alert("Problém s pripojením k inteligentnej databáze.");
+      alert("Chyba spojenia pri rozpoznávaní.");
     }
   };
 
@@ -131,7 +131,12 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
               <h2 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">
                 {editingItem ? 'Upraviť' : 'Pridať zásoby'}
               </h2>
-              {isAiProcessing && <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest animate-pulse">Prehľadávam Google & Databázy...</p>}
+              {isAiProcessing && (
+                <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest animate-pulse flex items-center gap-1.5 mt-1">
+                  <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span>
+                  Analýza webov a databáz...
+                </p>
+              )}
             </div>
             <button onClick={onClose} className="p-3 bg-white dark:bg-slate-800 text-slate-400 rounded-2xl border border-slate-100 dark:border-slate-700">✕</button>
           </div>
@@ -145,7 +150,7 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
                     required disabled={isAiProcessing} type="text" value={formData.name}
                     onChange={e => setFormData({...formData, name: e.target.value})}
                     placeholder="Názov produktu..."
-                    className="flex-1 px-5 py-3 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white border-none rounded-2xl outline-none font-bold placeholder:text-slate-400 dark:placeholder:text-slate-600"
+                    className="flex-1 px-5 py-3 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white border-none rounded-2xl outline-none font-bold placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:ring-2 focus:ring-emerald-500 transition-all"
                   />
                   {!editingItem && (
                     <button type="button" onClick={() => setShowScanner(true)} className="p-3.5 bg-emerald-600 text-white rounded-2xl shadow-lg active:scale-90 transition-transform flex items-center justify-center">
@@ -154,7 +159,10 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
                   )}
                 </div>
                 {scannedCode && (
-                  <p className="text-[10px] text-slate-400 mt-2 font-bold uppercase tracking-widest">Kód: {scannedCode}</p>
+                  <div className="flex items-center gap-2 mt-2">
+                    <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest">EAN: {scannedCode}</span>
+                    <button type="button" onClick={() => handleBarcodeScan(scannedCode)} className="text-[9px] text-emerald-500 font-black uppercase underline tracking-tighter">Skúsiť znova</button>
+                  </div>
                 )}
               </div>
 
@@ -173,7 +181,7 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
                 </div>
               </div>
 
-              <div className="p-5 bg-slate-50 dark:bg-slate-800/50 rounded-3xl border border-slate-200 dark:border-slate-800 space-y-4">
+              <div className="p-5 bg-slate-50 dark:bg-slate-800/50 rounded-3xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-inner">
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-[9px] font-black text-slate-400 mb-2 uppercase tracking-widest">Jednotka</label>
@@ -212,9 +220,9 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
                 <input 
                   type="checkbox" id="isHomemade" checked={formData.isHomemade}
                   onChange={e => setFormData({...formData, isHomemade: e.target.checked})}
-                  className="w-5 h-5 accent-emerald-600"
+                  className="w-5 h-5 accent-emerald-600 rounded-md"
                 />
-                <label htmlFor="isHomemade" className="text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-widest cursor-pointer">Domáci výrobok / Vlastné</label>
+                <label htmlFor="isHomemade" className="text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-widest cursor-pointer">Vlastná výroba / Lokálne</label>
               </div>
 
               <div>
