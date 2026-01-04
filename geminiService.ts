@@ -17,9 +17,6 @@ function safeJsonParse(text: string | undefined) {
   }
 }
 
-/**
- * KROK 1: Globálna databáza OpenFoodFacts (Nutella, Barilla, globálne značky)
- */
 async function fetchFromOpenFoodFacts(barcode: string) {
   try {
     const response = await fetch(`https://world.openfoodfacts.org/api/v2/product/${barcode}.json?fields=product_name,brands,quantity,product_name_sk,product_name_cs,product_name_en,net_weight_unit,net_weight_value,generic_name_sk`);
@@ -30,7 +27,7 @@ async function fetchFromOpenFoodFacts(barcode: string) {
       const brand = p.brands ? p.brands.split(',')[0] : "";
       return {
         name: (brand && !name.toLowerCase().includes(brand.toLowerCase()) ? `${brand} ${name}` : name).trim(),
-        quantity: parseFloat(p.net_weight_value) || 1,
+        quantity: parseFloat(p.net_weight_value) || 0,
         unit: p.net_weight_unit?.toLowerCase() || 'ks'
       };
     }
@@ -38,46 +35,31 @@ async function fetchFromOpenFoodFacts(barcode: string) {
   } catch (e) { return null; }
 }
 
-/**
- * KROK 2: UNIVERZÁLNY OMNI-SEARCH (Google Search Grounding)
- * Funguje na VŠETKY produkty (Saguaro, Relax, Maggi, Opavia, privátne značky všetkých reťazcov)
- */
 export async function parseSmartEntry(input: string, existingCategories: Category[]) {
   const barcode = input.trim();
   const isBarcode = /^\d+$/.test(barcode);
   const categoriesList = existingCategories.map(c => c.name).join(", ");
   
-  let initialData = null;
-  if (isBarcode) {
-    initialData = await fetchFromOpenFoodFacts(barcode);
-    // Ak OFF nájde presný a dlhý názov, končíme (ušetríme AI tokeny)
-    if (initialData && initialData.name.length > 12) {
-       return { ...initialData, categoryName: existingCategories[0].name };
-    }
-  }
-
-  // AGRESÍVNY OMNI-SEARCH MÓD (Gemini 3 Flash + Google Search)
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   const searchPrompt = isBarcode 
-    ? `SI ABSOLÚTNY EXPERT NA POTRAVINY A DROGÉRIU. Tvojou úlohou je identifikovať produkt pre kód: ${barcode}.
+    ? `SI POTRAVINOVÝ DETEKTÍV. Identifikuj produkt pre EAN: ${barcode}.
        
-       POSTUP:
-       1. Použi Google Search na nájdenie tohto EAN kódu.
-       2. Prehľadaj weby: itesco.sk, kaufland.sk, billa.sk, lidl.sk, rohlik.cz, kosik.sk, krajpotravin.sk, drmax.sk, mojadm.sk.
-       3. Nájdi presný názov, značku a balenie (napr. "Saguaro jemne perlivá 1.5l", "Relax 100% Jablko 1l", "Opavia Miňonky 50g").
-       4. Priraď kategóriu zo zoznamu: [${categoriesList}].
+       POKYNY:
+       1. Nájdi presný názov (Značka + Typ). Príklad: "Snico Horčica plnotučná".
+       2. Nájdi PRESNÚ HMOTNOSŤ/OBJEM. Príklad: ak je to Snico horčica, má 350g. Ak Relax, má 1l.
+       3. PRIRAĎ SPRÁVNU KATEGÓRIU z tohto zoznamu: [${categoriesList}].
+          - Horčica/Kečup/Koreniny patrí do "Omáčky & Prísady".
+          - Džús/Voda patrí do "Nápoje".
        
        Vráť JSON:
        {
-         "name": "Celý názov produktu so značkou a objemom",
-         "quantity": číslo,
+         "name": "Názov bez gramáže",
+         "quantity": číslo (hmotnosť napr. 350),
          "unit": "g/kg/ml/l/ks",
-         "categoryName": "jedna zo zoznamu"
-       }
-       
-       DÔLEŽITÉ: Ak nájdeš produkt na akomkoľvek webe, musíš ho vrátiť. Ak nevieš kategóriu, použi prvú zo zoznamu. Nevracaj null!`
-    : `Analyzuj text a identifikuj produkt: "${input}". Vyber kategóriu z [${categoriesList}]. Vráť JSON.`;
+         "categoryName": "presný názov kategórie zo zoznamu"
+       }`
+    : `Identifikuj produkt z textu: "${input}". Vyber kategóriu z [${categoriesList}]. Vráť JSON.`;
 
   try {
     const response = await ai.models.generateContent({
@@ -86,7 +68,6 @@ export async function parseSmartEntry(input: string, existingCategories: Categor
       config: {
         tools: isBarcode ? [{ googleSearch: {} }] : [],
         responseMimeType: "application/json",
-        thinkingConfig: { thinkingBudget: 0 },
         responseSchema: {
           type: Type.OBJECT,
           properties: {
@@ -100,16 +81,9 @@ export async function parseSmartEntry(input: string, existingCategories: Categor
       }
     });
     
-    const result = safeJsonParse(response.text);
-    if (result && result.name && result.name !== 'null' && result.name.length > 2) {
-      return result;
-    }
-    
-    // Posledný pokus - vráť aspoň to, čo našiel OFF, ak Google zlyhal
-    return initialData;
+    return safeJsonParse(response.text);
   } catch (error) {
-    console.error("Omni-Search Failed:", error);
-    return initialData;
+    return null;
   }
 }
 
@@ -119,8 +93,8 @@ export async function getRecipeSuggestions(items: FoodItem[]): Promise<string | 
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: `Mám v zásobách: ${stockInfo}. Navrhni 3 bleskové recepty po slovensky. Stručne.`,
+      contents: `Mám v zásobách: ${stockInfo}. Navrhni 3 bleskové recepty po slovensky. Buď stručný.`,
     });
     return response.text ?? null;
-  } catch (e) { return "Momentálne neviem navrhnúť recepty."; }
+  } catch (e) { return "Chyba pripojenia."; }
 }

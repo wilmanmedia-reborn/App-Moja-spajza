@@ -101,7 +101,7 @@ export const BarcodeScanner: React.FC<Props> = ({ onScan, onClose, isAnalyzing }
 
   return (
     <div className="fixed inset-0 z-[100] bg-black flex flex-col">
-      {/* Top Bar - Kalorické Tabuľky Style */}
+      {/* Top Bar */}
       <div className="safe-top bg-black/40 backdrop-blur-md flex justify-between items-center p-4 z-50">
         <button onClick={onClose} className="text-white font-bold px-4 py-2 uppercase text-xs tracking-widest">
           Zrušiť
@@ -120,7 +120,7 @@ export const BarcodeScanner: React.FC<Props> = ({ onScan, onClose, isAnalyzing }
       <div className="relative flex-1 bg-black overflow-hidden flex items-center justify-center">
         <div id={containerId} className="w-full h-full object-cover"></div>
         
-        {/* The "Kalorické Tabuľky" Box Overlay */}
+        {/* Box Overlay */}
         {!isAnalyzing && (
           <div className="absolute inset-0 z-10 flex flex-col items-center justify-center pointer-events-none">
             <div className="w-[80%] aspect-[1.8/1] relative border-2 border-white/30 rounded-2xl shadow-[0_0_0_1000px_rgba(0,0,0,0.5)]">
@@ -141,8 +141,8 @@ export const BarcodeScanner: React.FC<Props> = ({ onScan, onClose, isAnalyzing }
         {isAnalyzing && (
           <div className="absolute inset-0 z-50 bg-slate-900/90 backdrop-blur-md flex flex-col items-center justify-center text-center p-10">
             <div className="w-16 h-16 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin mb-6"></div>
-            <h3 className="text-white font-black text-xl uppercase tracking-tighter mb-2">Vyhľadávam produkt</h3>
-            <p className="text-emerald-500 text-[10px] font-black uppercase tracking-widest animate-pulse">Prehľadávam Tesco, Lidl a web...</p>
+            <h3 className="text-white font-black text-xl uppercase tracking-tighter mb-2">Hľadám v e-shopoch</h3>
+            <p className="text-emerald-500 text-[10px] font-black uppercase tracking-widest animate-pulse">Prehľadávam slovenské weby (Tesco, Relax, Heureka)...</p>
           </div>
         )}
 
@@ -154,7 +154,7 @@ export const BarcodeScanner: React.FC<Props> = ({ onScan, onClose, isAnalyzing }
         )}
       </div>
 
-      {/* Manual Input Area - Clean Bottom Bar */}
+      {/* Manual Input Area */}
       <div className="bg-slate-900 border-t border-white/10 p-6 pb-10">
         <form onSubmit={handleManualSearch} className="flex flex-col gap-4 max-w-sm mx-auto">
           <div className="relative">
@@ -172,12 +172,9 @@ export const BarcodeScanner: React.FC<Props> = ({ onScan, onClose, isAnalyzing }
             disabled={!manualCode.trim() || isAnalyzing}
             className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 text-white font-black rounded-2xl uppercase text-[11px] tracking-widest shadow-xl transition-all active:scale-95"
           >
-            {isAnalyzing ? 'Hľadám...' : 'Vyhľadať produkt'}
+            {isAnalyzing ? 'Vyhľadávam...' : 'Vyhľadať produkt'}
           </button>
         </form>
-        <p className="text-center mt-4 text-[9px] font-bold text-slate-500 uppercase tracking-tighter opacity-50">
-          Tip: Pre lokálne produkty (Saguaro, Relax) zadajte kód ručne ak skener zlyhá.
-        </p>
       </div>
 
       <style>{`

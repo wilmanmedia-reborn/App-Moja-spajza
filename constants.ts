@@ -10,6 +10,8 @@ export const INITIAL_LOCATIONS: Location[] = [
 
 export const INITIAL_CATEGORIES: Category[] = [
   { id: 'c1', name: 'Cestoviny & Ryža', icon: '🍝' },
+  { id: 'c7', name: 'Omáčky & Prísady', icon: '🍯' },
+  { id: 'c8', name: 'Nápoje', icon: '🧃' },
   { id: 'c2', name: 'Konzervy', icon: '🥫' },
   { id: 'c3', name: 'Pečenie', icon: '🍰' },
   { id: 'c4', name: 'Strukoviny', icon: '🫘' },
@@ -28,48 +30,6 @@ export const MOCK_ITEMS: FoodItem[] = [
     unit: Unit.G,
     quantityPerPack: 500,
     expiryDate: '2025-12-31',
-    isHomemade: false,
-    lastUpdated: Date.now(),
-    householdId: 'MOCK_HOUSEHOLD'
-  },
-  {
-    id: '2',
-    name: 'Paradajkový pretlak',
-    category: 'c2',
-    locationId: 'l1',
-    currentQuantity: 2,
-    totalQuantity: 3,
-    unit: Unit.KS,
-    quantityPerPack: 1,
-    expiryDate: '2026-06-15',
-    isHomemade: false,
-    lastUpdated: Date.now(),
-    householdId: 'MOCK_HOUSEHOLD'
-  },
-  {
-    id: '3',
-    name: 'Domáci jahodový džem',
-    category: 'c6',
-    locationId: 'l2',
-    currentQuantity: 250,
-    totalQuantity: 400,
-    unit: Unit.ML,
-    quantityPerPack: 400,
-    expiryDate: '2025-09-01',
-    isHomemade: true,
-    lastUpdated: Date.now(),
-    householdId: 'MOCK_HOUSEHOLD'
-  },
-  {
-    id: '4',
-    name: 'Hladká múka 00',
-    category: 'c3',
-    locationId: 'l3',
-    currentQuantity: 400,
-    totalQuantity: 1000,
-    unit: Unit.G,
-    quantityPerPack: 1000,
-    expiryDate: '2025-11-20',
     isHomemade: false,
     lastUpdated: Date.now(),
     householdId: 'MOCK_HOUSEHOLD'
