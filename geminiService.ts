@@ -18,11 +18,26 @@ function safeJsonParse(text: string | undefined) {
 }
 
 /**
- * Rýchle vyhľadávanie v databáze OpenFoodFacts (zdarma a bleskové)
+ * Jednoduché mapovanie OFF kategórií na naše kategórie, ak AI nie je dostupná
+ */
+function mapCategoryFromTags(tags: string[] = []): string | null {
+  const t = tags.join(' ').toLowerCase();
+  if (t.includes('pastas') || t.includes('rice') || t.includes('noodles')) return 'Cestoviny & Ryža';
+  if (t.includes('sauces') || t.includes('condiments') || t.includes('spices') || t.includes('mustards') || t.includes('ketchup')) return 'Omáčky & Prísady';
+  if (t.includes('beverages') || t.includes('drinks') || t.includes('juices') || t.includes('waters')) return 'Nápoje';
+  if (t.includes('canned') || t.includes('tins')) return 'Konzervy';
+  if (t.includes('legumes') || t.includes('beans') || t.includes('lentils')) return 'Strukoviny';
+  if (t.includes('snacks') || t.includes('biscuits') || t.includes('chocolates') || t.includes('chips')) return 'Sladkosti & Slané';
+  if (t.includes('flours') || t.includes('baking') || t.includes('sugars')) return 'Pečenie';
+  return null;
+}
+
+/**
+ * Rýchle vyhľadávanie v databáze OpenFoodFacts
  */
 async function fetchFromOpenFoodFacts(barcode: string) {
   try {
-    const response = await fetch(`https://world.openfoodfacts.org/api/v2/product/${barcode}.json?fields=product_name,brands,quantity,product_name_sk,product_name_cs,product_name_en,net_weight_unit,net_weight_value,generic_name_sk`);
+    const response = await fetch(`https://world.openfoodfacts.org/api/v2/product/${barcode}.json?fields=product_name,brands,quantity,product_name_sk,product_name_cs,product_name_en,net_weight_unit,net_weight_value,generic_name_sk,categories_tags`);
     const data = await response.json();
     if (data.status === 1 && data.product) {
       const p = data.product;
@@ -31,7 +46,8 @@ async function fetchFromOpenFoodFacts(barcode: string) {
       return {
         name: (brand && !nameSk.toLowerCase().includes(brand.toLowerCase()) ? `${brand} ${nameSk}` : nameSk).trim(),
         quantity: parseFloat(p.net_weight_value) || 0,
-        unit: p.net_weight_unit?.toLowerCase() || 'g'
+        unit: p.net_weight_unit?.toLowerCase() || 'g',
+        categoriesTags: p.categories_tags || []
       };
     }
     return null;
@@ -43,29 +59,35 @@ export async function parseSmartEntry(input: string, existingCategories: Categor
   const isBarcode = /^\d+$/.test(barcode);
   const categoriesList = existingCategories.map(c => c.name).join(", ");
 
-  // 1. KROK: Skúsime rýchlu databázu
+  // 1. KROK: Skúsime rýchlu databázu (OpenFoodFacts)
   if (isBarcode) {
     const fastData = await fetchFromOpenFoodFacts(barcode);
     if (fastData && fastData.name.length > 3) {
-      // Máme dáta z OFF, ale AI nám priradí správnu kategóriu
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const catResponse = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: `Produkt: "${fastData.name}". Priraď jednu kategóriu zo zoznamu: [${categoriesList}]. Vráť iba názov kategórie.`,
-      });
-      return { ...fastData, categoryName: catResponse.text.trim() };
+      // Máme dáta z OFF. Skúsime AI pre kategóriu, ale ak zlyhá, použijeme fallback.
+      try {
+        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+        const catResponse = await ai.models.generateContent({
+          model: 'gemini-3-flash-preview',
+          contents: `Produkt: "${fastData.name}". Priraď jednu kategóriu zo zoznamu: [${categoriesList}]. Vráť iba názov kategórie.`,
+        });
+        return { ...fastData, categoryName: catResponse.text.trim() };
+      } catch (aiError) {
+        // AI zlyhalo (napr. na Vercel bez API key), použijeme offline mapovanie
+        console.warn("AI categorization failed, using fallback mapper.");
+        const mappedCat = mapCategoryFromTags(fastData.categoriesTags);
+        return { ...fastData, categoryName: mappedCat || "" }; 
+      }
     }
   }
   
-  // 2. KROK: Ak sme nič nenašli, použijeme Google Search cez Gemini
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  const searchPrompt = isBarcode 
-    ? `Identifikuj slovenský/český produkt pre EAN: ${barcode}. 
-       Hľadaj názov, kategóriu z [${categoriesList}] a hmotnosť/objem (napr. 350g). 
-       Vráť JSON: {"name": string, "quantity": number, "unit": "g"|"ml"|"ks", "categoryName": string}`
-    : `Identifikuj produkt: "${input}". Vyber kategóriu z [${categoriesList}]. Vráť JSON.`;
-
+  // 2. KROK: Google Search cez Gemini (iba ak OFF nič nenašiel)
+  // Ak nemáme API kľúč, toto padne do catch bloku a vráti null -> Modal zobrazí chybu, ale aspoň OFF fungoval v kroku 1.
   try {
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const searchPrompt = isBarcode 
+      ? `Identifikuj produkt pre EAN: ${barcode}. Hľadaj názov, kategóriu z [${categoriesList}] a hmotnosť. Vráť JSON.`
+      : `Identifikuj produkt: "${input}". Vyber kategóriu z [${categoriesList}]. Vráť JSON.`;
+
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: searchPrompt,
@@ -93,13 +115,13 @@ export async function parseSmartEntry(input: string, existingCategories: Categor
 }
 
 export async function getRecipeSuggestions(items: FoodItem[]): Promise<string | null> {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  const stockInfo = items.filter(i => (i.currentQuantity / i.totalQuantity) > 0.1).map(i => `${i.name}`).join(", ");
   try {
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const stockInfo = items.filter(i => (i.currentQuantity / i.totalQuantity) > 0.1).map(i => `${i.name}`).join(", ");
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: `Mám v špajzi: ${stockInfo}. Navrhni 3 bleskové slovenské recepty.`,
     });
     return response.text ?? null;
-  } catch (e) { return "Chyba."; }
+  } catch (e) { return "Funkcia receptov momentálne nie je dostupná (skontrolujte API kľúč)."; }
 }
