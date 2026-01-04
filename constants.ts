@@ -4,13 +4,13 @@ import { Unit, Location, Category, FoodItem } from './types';
 export const INITIAL_LOCATIONS: Location[] = [
   { id: 'l1', name: 'Špajza', icon: '🧺' },
   { id: 'l2', name: 'Pivnica', icon: '❄️' },
-  { id: 'l3', name: 'Kuchynská linka', icon: '🍳' },
-  { id: 'l4', name: 'Sklad v garáži', icon: '📦' }
+  { id: 'l3', name: 'Kuchyňa', icon: '🍳' },
+  { id: 'l4', name: 'Sklad', icon: '📦' }
 ];
 
 export const INITIAL_CATEGORIES: Category[] = [
-  { id: 'c1', name: 'Cestoviny & Ryža', icon: '🍝' },
   { id: 'c7', name: 'Omáčky & Prísady', icon: '🍯' },
+  { id: 'c1', name: 'Cestoviny & Ryža', icon: '🍝' },
   { id: 'c8', name: 'Nápoje', icon: '🧃' },
   { id: 'c2', name: 'Konzervy', icon: '🥫' },
   { id: 'c3', name: 'Pečenie', icon: '🍰' },
