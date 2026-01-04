@@ -17,31 +17,53 @@ function safeJsonParse(text: string | undefined) {
   }
 }
 
+/**
+ * Rýchle vyhľadávanie v databáze OpenFoodFacts (zdarma a bleskové)
+ */
+async function fetchFromOpenFoodFacts(barcode: string) {
+  try {
+    const response = await fetch(`https://world.openfoodfacts.org/api/v2/product/${barcode}.json?fields=product_name,brands,quantity,product_name_sk,product_name_cs,product_name_en,net_weight_unit,net_weight_value,generic_name_sk`);
+    const data = await response.json();
+    if (data.status === 1 && data.product) {
+      const p = data.product;
+      const nameSk = p.product_name_sk || p.generic_name_sk || p.product_name_cs || p.product_name || p.product_name_en || "";
+      const brand = p.brands ? p.brands.split(',')[0] : "";
+      return {
+        name: (brand && !nameSk.toLowerCase().includes(brand.toLowerCase()) ? `${brand} ${nameSk}` : nameSk).trim(),
+        quantity: parseFloat(p.net_weight_value) || 0,
+        unit: p.net_weight_unit?.toLowerCase() || 'g'
+      };
+    }
+    return null;
+  } catch (e) { return null; }
+}
+
 export async function parseSmartEntry(input: string, existingCategories: Category[]) {
   const barcode = input.trim();
   const isBarcode = /^\d+$/.test(barcode);
   const categoriesList = existingCategories.map(c => c.name).join(", ");
+
+  // 1. KROK: Skúsime rýchlu databázu
+  if (isBarcode) {
+    const fastData = await fetchFromOpenFoodFacts(barcode);
+    if (fastData && fastData.name.length > 3) {
+      // Máme dáta z OFF, ale AI nám priradí správnu kategóriu
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const catResponse = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: `Produkt: "${fastData.name}". Priraď jednu kategóriu zo zoznamu: [${categoriesList}]. Vráť iba názov kategórie.`,
+      });
+      return { ...fastData, categoryName: catResponse.text.trim() };
+    }
+  }
   
+  // 2. KROK: Ak sme nič nenašli, použijeme Google Search cez Gemini
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  
   const searchPrompt = isBarcode 
-    ? `Identifikuj produkt pre EAN: ${barcode}. 
-       Zameraj sa na SLOVENSKÝ trh (napr. Snico, Relax, Sedita).
-       
-       ÚLOHY:
-       1. Nájdi presný názov (Značka + Typ).
-       2. Nájdi HMOTNOSŤ/OBJEM v gramoch alebo mililitroch (napr. 350, 500, 1000).
-       3. Vyber kategóriu z: [${categoriesList}]. 
-          POZOR: Horčica, kečup, dresing patria do "Omáčky & Prísady". Džús do "Nápoje".
-       
-       Vráť JSON:
-       {
-         "name": "Presný názov",
-         "quantity": číslo (len hodnota, napr. 350),
-         "unit": "g" alebo "ml" alebo "ks",
-         "categoryName": "názov kategórie"
-       }`
-    : `Analyzuj text: "${input}". Vyber kategóriu z [${categoriesList}]. Vráť JSON.`;
+    ? `Identifikuj slovenský/český produkt pre EAN: ${barcode}. 
+       Hľadaj názov, kategóriu z [${categoriesList}] a hmotnosť/objem (napr. 350g). 
+       Vráť JSON: {"name": string, "quantity": number, "unit": "g"|"ml"|"ks", "categoryName": string}`
+    : `Identifikuj produkt: "${input}". Vyber kategóriu z [${categoriesList}]. Vráť JSON.`;
 
   try {
     const response = await ai.models.generateContent({
@@ -76,7 +98,7 @@ export async function getRecipeSuggestions(items: FoodItem[]): Promise<string | 
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: `Mám v špajzi: ${stockInfo}. Navrhni 3 krátke slovenské recepty.`,
+      contents: `Mám v špajzi: ${stockInfo}. Navrhni 3 bleskové slovenské recepty.`,
     });
     return response.text ?? null;
   } catch (e) { return "Chyba."; }
