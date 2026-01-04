@@ -17,9 +17,6 @@ function safeJsonParse(text: string | undefined) {
   }
 }
 
-/**
- * Jednoduché mapovanie OFF kategórií na naše kategórie, ak AI nie je dostupná
- */
 function mapCategoryFromTags(tags: string[] = []): string | null {
   const t = tags.join(' ').toLowerCase();
   if (t.includes('pastas') || t.includes('rice') || t.includes('noodles')) return 'Cestoviny & Ryža';
@@ -32,9 +29,6 @@ function mapCategoryFromTags(tags: string[] = []): string | null {
   return null;
 }
 
-/**
- * Rýchle vyhľadávanie v databáze OpenFoodFacts
- */
 async function fetchFromOpenFoodFacts(barcode: string) {
   try {
     const response = await fetch(`https://world.openfoodfacts.org/api/v2/product/${barcode}.json?fields=product_name,brands,quantity,product_name_sk,product_name_cs,product_name_en,net_weight_unit,net_weight_value,generic_name_sk,categories_tags`);
@@ -43,9 +37,18 @@ async function fetchFromOpenFoodFacts(barcode: string) {
       const p = data.product;
       const nameSk = p.product_name_sk || p.generic_name_sk || p.product_name_cs || p.product_name || p.product_name_en || "";
       const brand = p.brands ? p.brands.split(',')[0] : "";
+      const fullName = (brand && !nameSk.toLowerCase().includes(brand.toLowerCase()) ? `${brand} ${nameSk}` : nameSk).trim();
+      
+      // Skúsime získať hmotnosť buď z metaúdajov alebo parsovaním textu (napr. "350 g")
+      let weight = parseFloat(p.net_weight_value);
+      if (isNaN(weight) || weight === 0) {
+        const weightMatch = (p.quantity || fullName).match(/(\d+(?:[.,]\d+)?)\s*(g|ml|kg|l)/i);
+        if (weightMatch) weight = parseFloat(weightMatch[1].replace(',', '.'));
+      }
+
       return {
-        name: (brand && !nameSk.toLowerCase().includes(brand.toLowerCase()) ? `${brand} ${nameSk}` : nameSk).trim(),
-        quantity: parseFloat(p.net_weight_value) || 0,
+        name: fullName,
+        quantity: weight || 0,
         unit: p.net_weight_unit?.toLowerCase() || 'g',
         categoriesTags: p.categories_tags || []
       };
@@ -59,11 +62,9 @@ export async function parseSmartEntry(input: string, existingCategories: Categor
   const isBarcode = /^\d+$/.test(barcode);
   const categoriesList = existingCategories.map(c => c.name).join(", ");
 
-  // 1. KROK: Skúsime rýchlu databázu (OpenFoodFacts)
   if (isBarcode) {
     const fastData = await fetchFromOpenFoodFacts(barcode);
     if (fastData && fastData.name.length > 3) {
-      // Máme dáta z OFF. Skúsime AI pre kategóriu, ale ak zlyhá, použijeme fallback.
       try {
         const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
         const catResponse = await ai.models.generateContent({
@@ -72,16 +73,12 @@ export async function parseSmartEntry(input: string, existingCategories: Categor
         });
         return { ...fastData, categoryName: catResponse.text.trim() };
       } catch (aiError) {
-        // AI zlyhalo (napr. na Vercel bez API key), použijeme offline mapovanie
-        console.warn("AI categorization failed, using fallback mapper.");
         const mappedCat = mapCategoryFromTags(fastData.categoriesTags);
         return { ...fastData, categoryName: mappedCat || "" }; 
       }
     }
   }
   
-  // 2. KROK: Google Search cez Gemini (iba ak OFF nič nenašiel)
-  // Ak nemáme API kľúč, toto padne do catch bloku a vráti null -> Modal zobrazí chybu, ale aspoň OFF fungoval v kroku 1.
   try {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const searchPrompt = isBarcode 
@@ -123,5 +120,5 @@ export async function getRecipeSuggestions(items: FoodItem[]): Promise<string | 
       contents: `Mám v špajzi: ${stockInfo}. Navrhni 3 bleskové slovenské recepty.`,
     });
     return response.text ?? null;
-  } catch (e) { return "Funkcia receptov momentálne nie je dostupná (skontrolujte API kľúč)."; }
+  } catch (e) { return "Funkcia receptov momentálne nie je dostupná."; }
 }

@@ -125,9 +125,8 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
   return (
     <>
       <div className="fixed inset-0 z-50 flex items-center justify-center p-2 bg-slate-950/80 backdrop-blur-sm">
-        <div className="bg-white dark:bg-slate-900 rounded-[2rem] w-full max-w-sm max-h-[96vh] shadow-2xl flex flex-col animate-in zoom-in duration-200 overflow-hidden border border-white/10">
+        <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] w-full max-w-sm max-h-[96vh] shadow-2xl flex flex-col animate-in zoom-in duration-200 overflow-hidden border border-white/10">
           
-          {/* Kompaktný Header */}
           <div className="px-4 py-3 flex justify-between items-center border-b border-slate-100 dark:border-slate-800 shrink-0">
             <h2 className="text-[12px] font-black text-slate-900 dark:text-white uppercase tracking-tighter">
               {editingItem ? 'Upraviť' : 'Pridať položku'}
@@ -136,95 +135,98 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
           </div>
 
           <div className="overflow-y-auto no-scrollbar flex-1 overscroll-contain">
-            <form onSubmit={handleSubmit} className="px-4 py-4 space-y-3">
+            <form onSubmit={handleSubmit} className="px-4 py-4 space-y-4">
               
-              {/* Názov + Skener */}
+              {/* Názov Produktu */}
               <div>
-                <label className="block text-[8px] font-black text-slate-400 mb-1 uppercase tracking-widest">Názov produktu</label>
+                <label className="block text-[8px] font-black text-slate-400 mb-1 uppercase tracking-widest ml-1">Názov produktu</label>
                 <div className="flex gap-2">
                   <input 
                     required disabled={isAiProcessing} type="text" value={formData.name}
                     onChange={e => setFormData({...formData, name: e.target.value})}
                     placeholder="Napr. Snico Horčica..."
-                    className="flex-1 px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white rounded-xl outline-none font-bold text-[13px]"
+                    className="flex-1 px-4 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white rounded-xl outline-none font-bold text-[14px]"
                   />
                   {!editingItem && (
                     <button type="button" onClick={() => setShowScanner(true)} className="p-2.5 bg-emerald-600 text-white rounded-xl shadow-lg active:scale-90 transition-transform">
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M12 4v1m-3.322 3.322l-.707.707M5 12h1m3.322 3.322l-.707.707M12 19v1m3.322-3.322l.707.707M19 12h1m-3.322-3.322l.707-.707M12 12a4 4 0 110-8 4 4 0 010 8z" /></svg>
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M12 4v1m-3.322 3.322l-.707.707M5 12h1m3.322 3.322l-.707.707M12 19v1m3.322-3.322l.707.707M19 12h1m-3.322-3.322l.707-.707M12 12a4 4 0 110-8 4 4 0 010 8z" /></svg>
                     </button>
                   )}
                 </div>
                 {scannedCode && <p className="text-[7px] text-emerald-500 font-bold mt-1 uppercase ml-1">Kód: {scannedCode}</p>}
               </div>
 
-              {/* Lokácia + Kategória */}
-              <div className="grid grid-cols-2 gap-2">
+              {/* Lokácia a Kategória */}
+              <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest">Lokalita</label>
-                  <select value={formData.locationId} onChange={e => setFormData({...formData, locationId: e.target.value})} className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white rounded-xl font-bold appearance-none text-[11px] outline-none">
+                  <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Lokalita</label>
+                  <select value={formData.locationId} onChange={e => setFormData({...formData, locationId: e.target.value})} className="w-full px-3 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white rounded-xl font-bold appearance-none text-[12px] outline-none border-none">
                     {locations.map(l => <option key={l.id} value={l.id}>{l.icon} {l.name}</option>)}
                   </select>
                 </div>
                 <div className="space-y-1">
-                  <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest">Kategória</label>
-                  <select value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white rounded-xl font-bold appearance-none text-[11px] outline-none">
+                  <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Kategória</label>
+                  <select value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} className="w-full px-3 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white rounded-xl font-bold appearance-none text-[12px] outline-none border-none">
                     {categories.map(c => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
                   </select>
                 </div>
               </div>
 
-              {/* Obsah a stavy - Super kompakt */}
-              <div className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-2xl space-y-3">
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="flex gap-1">
-                    <div className="flex-1">
-                      <label className="block text-[7px] font-black text-slate-400 mb-1 uppercase tracking-widest text-center">Jednotka</label>
-                      <select value={formData.unit} onChange={e => setFormData({...formData, unit: e.target.value as Unit})} className="w-full px-1 py-1.5 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg font-bold text-[11px] border border-slate-200 dark:border-slate-700 text-center outline-none">
-                        {Object.values(Unit).map(u => <option key={u} value={u}>{u}</option>)}
-                      </select>
-                    </div>
-                    <div className="flex-[2]">
-                      <label className="block text-[7px] font-black text-slate-400 mb-1 uppercase tracking-widest text-center">Obsah 1ks</label>
-                      <input required={formData.unit !== Unit.KS} type="number" step="any" disabled={formData.unit === Unit.KS} value={formData.quantityPerPack} onChange={e => setFormData({...formData, quantityPerPack: Number(e.target.value)})} className="w-full px-2 py-1.5 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg font-black text-center text-[11px] border border-slate-200 dark:border-slate-700 outline-none" />
-                    </div>
+              {/* Množstvá a jednotky - Fix centrovania */}
+              <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[7px] font-black text-slate-400 mb-1 uppercase tracking-widest text-center">Jednotka</label>
+                    <select value={formData.unit} onChange={e => setFormData({...formData, unit: e.target.value as Unit})} className="w-full px-2 py-2 bg-white dark:bg-slate-900 text-slate-900 dark:text-white rounded-lg font-bold text-[12px] border border-slate-200 dark:border-slate-700 text-center outline-none">
+                      {Object.values(Unit).map(u => <option key={u} value={u}>{u}</option>)}
+                    </select>
                   </div>
-                  <div className="flex gap-1">
-                    <div className="flex-1">
-                      <label className="block text-[7px] font-black text-emerald-600 mb-1 uppercase tracking-widest text-center">Mám (ks)</label>
-                      <input required type="number" value={formData.currentPacks} min="0" onChange={e => setFormData({...formData, currentPacks: Number(e.target.value)})} className="w-full px-1 py-1.5 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-900 dark:text-emerald-100 rounded-lg font-black text-center text-[11px] outline-none border border-emerald-200 dark:border-emerald-800" />
-                    </div>
-                    <div className="flex-1">
-                      <label className="block text-[7px] font-black text-slate-400 mb-1 uppercase tracking-widest text-center">Cieľ (ks)</label>
-                      <input required type="number" value={formData.targetPacks} min="1" onChange={e => setFormData({...formData, targetPacks: Number(e.target.value)})} className="w-full px-1 py-1.5 bg-white dark:bg-slate-900 dark:text-white rounded-lg font-black text-center text-[11px] border border-slate-200 dark:border-slate-700 outline-none" />
-                    </div>
+                  <div>
+                    <label className="block text-[7px] font-black text-slate-400 mb-1 uppercase tracking-widest text-center">Obsah 1ks</label>
+                    <input required={formData.unit !== Unit.KS} type="number" step="any" disabled={formData.unit === Unit.KS} value={formData.quantityPerPack} onChange={e => setFormData({...formData, quantityPerPack: Number(e.target.value)})} className="w-full px-2 py-2 bg-white dark:bg-slate-900 text-slate-900 dark:text-white rounded-lg font-black text-center text-[12px] border border-slate-200 dark:border-slate-700 outline-none" />
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[7px] font-black text-emerald-600 mb-1 uppercase tracking-widest text-center">Mám (ks)</label>
+                    <input required type="number" value={formData.currentPacks} min="0" onChange={e => setFormData({...formData, currentPacks: Number(e.target.value)})} className="w-full px-2 py-2 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-900 dark:text-emerald-100 rounded-lg font-black text-center text-[12px] outline-none border border-emerald-200 dark:border-emerald-800" />
+                  </div>
+                  <div>
+                    <label className="block text-[7px] font-black text-slate-400 mb-1 uppercase tracking-widest text-center">Cieľ (ks)</label>
+                    <input required type="number" value={formData.targetPacks} min="1" onChange={e => setFormData({...formData, targetPacks: Number(e.target.value)})} className="w-full px-2 py-2 bg-white dark:bg-slate-900 dark:text-white rounded-lg font-black text-center text-[12px] border border-slate-200 dark:border-slate-700 outline-none" />
                   </div>
                 </div>
               </div>
 
-              {/* Expirácia + Domáce - Kompaktne vedľa seba */}
-              <div className="grid grid-cols-2 gap-2 items-end">
-                <div>
-                  <label className="block text-[8px] font-black text-slate-400 mb-1 uppercase tracking-widest">Expirácia</label>
-                  <input 
-                    type="date" value={formData.expiryDate}
-                    onChange={e => setFormData({...formData, expiryDate: e.target.value})}
-                    className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white rounded-xl outline-none font-bold text-[11px]"
-                  />
+              {/* Expirácia - Samostatný riadok */}
+              <div className="space-y-1">
+                <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Spotrebujte do</label>
+                <input 
+                  type="date" value={formData.expiryDate}
+                  onChange={e => setFormData({...formData, expiryDate: e.target.value})}
+                  className="w-full px-4 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white rounded-xl outline-none font-bold text-[12px] border-none"
+                />
+              </div>
+
+              {/* Vlastná výroba - Moderný Prepínač */}
+              <div 
+                onClick={() => setFormData(prev => ({ ...prev, isHomemade: !prev.isHomemade }))}
+                className={`flex items-center justify-between p-3.5 rounded-2xl cursor-pointer transition-all border-2 ${formData.isHomemade ? 'bg-amber-500/10 border-amber-500' : 'bg-slate-50 dark:bg-slate-800 border-transparent'}`}
+              >
+                <div className="flex flex-col">
+                  <span className={`text-[9px] font-black uppercase tracking-widest ${formData.isHomemade ? 'text-amber-600' : 'text-slate-400'}`}>Pôvod produktu</span>
+                  <span className={`text-[11px] font-bold ${formData.isHomemade ? 'text-amber-800 dark:text-amber-400' : 'text-slate-500'}`}>Vlastná / Lokálna výroba</span>
                 </div>
-                <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800/30 p-2 rounded-xl border border-slate-100 dark:border-slate-800 h-[38px]">
-                  <input 
-                    type="checkbox" id="isHomemade" checked={formData.isHomemade}
-                    onChange={e => setFormData({...formData, isHomemade: e.target.checked})}
-                    className="w-4 h-4 accent-emerald-600 rounded"
-                  />
-                  <label htmlFor="isHomemade" className="text-[7px] font-black text-slate-500 uppercase tracking-widest cursor-pointer leading-tight">Vlastná / Lokálna</label>
+                <div className={`w-10 h-6 rounded-full relative transition-colors ${formData.isHomemade ? 'bg-amber-500' : 'bg-slate-200 dark:bg-slate-700'}`}>
+                  <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${formData.isHomemade ? 'left-5' : 'left-1'}`}></div>
                 </div>
               </div>
 
-              {/* Hlavné akčné tlačidlo - Vždy viditeľné */}
-              <div className="pt-2 sticky bottom-0">
+              {/* Hlavné tlačidlo */}
+              <div className="pt-2">
                 <button type="submit" disabled={isAiProcessing} className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-400 text-white font-black rounded-2xl shadow-xl transition-all uppercase tracking-widest text-[11px] active:scale-95">
-                  {isAiProcessing ? 'Analýza produktu...' : (editingItem ? 'Uložiť zmeny' : 'Uložiť do systému')}
+                  {isAiProcessing ? 'Spracúvam údaje...' : (editingItem ? 'Uložiť zmeny' : 'Uložiť do systému')}
                 </button>
               </div>
             </form>
