@@ -10,9 +10,11 @@ interface Props {
   onDelete: (id: string) => void;
   onEdit: (item: FoodItem) => void;
   onAddToShoppingList: (item: FoodItem) => void;
+  onQuickAdd: (item: FoodItem) => void;
+  onConsume: (item: FoodItem) => void;
 }
 
-export const InventoryItemRow: React.FC<Props> = ({ item, location, category, onUpdate, onDelete, onEdit, onAddToShoppingList }) => {
+export const InventoryItemRow: React.FC<Props> = ({ item, location, category, onDelete, onEdit, onAddToShoppingList, onQuickAdd, onConsume }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   
   const percentage = (item.currentQuantity / item.totalQuantity) * 100;
@@ -94,7 +96,7 @@ export const InventoryItemRow: React.FC<Props> = ({ item, location, category, on
           <button 
             onClick={(e) => {
               e.stopPropagation();
-              onUpdate(item.id, { currentQuantity: Math.max(0, item.currentQuantity - packSize) });
+              onConsume(item);
             }}
             className="w-9 h-9 sm:w-11 sm:h-11 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-2xl flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-700 active:scale-90 transition-all border border-slate-200 dark:border-slate-700"
           >
@@ -103,7 +105,7 @@ export const InventoryItemRow: React.FC<Props> = ({ item, location, category, on
           <button 
             onClick={(e) => {
               e.stopPropagation();
-              onUpdate(item.id, { currentQuantity: item.currentQuantity + packSize });
+              onQuickAdd(item);
             }}
             className="w-9 h-9 sm:w-11 sm:h-11 bg-emerald-100 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 rounded-2xl flex items-center justify-center hover:bg-emerald-200 dark:hover:bg-emerald-800 active:scale-90 transition-all border border-emerald-200 dark:border-emerald-800/50"
           >

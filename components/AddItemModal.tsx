@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { FoodItem, Unit, Location, Category } from '../types';
+import { FoodItem, Unit, Location, Category, Batch } from '../types';
 import { BarcodeScanner } from './BarcodeScanner';
 import { parseSmartEntry } from '../geminiService';
 
@@ -25,12 +25,14 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
     category: '',
     locationId: '',
     targetPacks: 1,
-    currentPacks: 1,
+    currentPacks: 1, // Používame pre celkový súčet alebo pre novú položku
     quantityPerPack: 0,
     unit: Unit.G,
-    expiryDate: '',
+    expiryDate: '', // Používame pre "hlavný" alebo "prvý" batch pri vytváraní
     isHomemade: false
   });
+  
+  const [tempBatches, setTempBatches] = useState<Batch[]>([]);
 
   // Zabránenie scrolovaniu pozadia pri otvorenom modale
   useEffect(() => {
@@ -65,6 +67,7 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
         expiryDate: editingItem.expiryDate || '',
         isHomemade: editingItem.isHomemade
       });
+      setTempBatches(editingItem.batches || []);
     } else {
       setFormData({
         name: '',
@@ -77,6 +80,7 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
         expiryDate: '',
         isHomemade: false
       });
+      setTempBatches([]);
     }
   }, [editingItem, categories, locations, isOpen]);
 
@@ -123,24 +127,63 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
 
     const isKs = formData.unit === Unit.KS;
     const total = isKs ? formData.targetPacks : formData.targetPacks * formData.quantityPerPack;
-    const current = isKs ? formData.currentPacks : formData.currentPacks * formData.quantityPerPack;
     
-    const payload = {
-      name: formData.name,
-      category: formData.category,
-      locationId: formData.locationId,
-      totalQuantity: total,
-      currentQuantity: current,
-      unit: formData.unit,
-      quantityPerPack: isKs ? undefined : formData.quantityPerPack,
-      expiryDate: formData.expiryDate,
-      isHomemade: formData.isHomemade
-    };
+    // Ak editujeme, prepočítame currentQuantity z batches
+    let current = isKs ? formData.currentPacks : formData.currentPacks * formData.quantityPerPack;
+    let finalBatches = tempBatches;
 
-    if (editingItem) onUpdate(editingItem.id, payload);
-    else onAdd(payload);
+    if (editingItem) {
+        // Pri editácii sa spoliehame na tempBatches
+        current = tempBatches.reduce((acc, b) => acc + b.quantity, 0);
+        
+        // Update nearest expiry based on batches
+        const sortedBatches = [...tempBatches].sort((a, b) => {
+          if (!a.expiryDate) return 1;
+          if (!b.expiryDate) return -1;
+          return new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime();
+        });
+        
+        const nearestExpiry = sortedBatches.find(b => b.expiryDate)?.expiryDate || sortedBatches[0]?.expiryDate || '';
+
+        onUpdate(editingItem.id, {
+            name: formData.name,
+            category: formData.category,
+            locationId: formData.locationId,
+            totalQuantity: total,
+            currentQuantity: current,
+            unit: formData.unit,
+            quantityPerPack: isKs ? undefined : formData.quantityPerPack,
+            isHomemade: formData.isHomemade,
+            batches: tempBatches,
+            expiryDate: nearestExpiry
+        });
+    } else {
+        // Pri pridávaní novej položky vytvárame item, batch sa vytvorí v App.tsx
+        // Alebo, ak chceme byť konzistentní, App.tsx by mala dostať rovno batch.
+        // Pre zjednodušenie (lebo App.tsx handleAddItem očakáva Omit<FoodItem...>)
+        // pošleme základné dáta a App.tsx vytvorí prvý batch.
+        
+        // POZOR: App.tsx handleAddItem používa expiryDate z payloadu pre prvý batch.
+        
+        const payload = {
+            name: formData.name,
+            category: formData.category,
+            locationId: formData.locationId,
+            totalQuantity: total,
+            currentQuantity: current,
+            unit: formData.unit,
+            quantityPerPack: isKs ? undefined : formData.quantityPerPack,
+            expiryDate: formData.expiryDate,
+            isHomemade: formData.isHomemade
+        };
+        onAdd(payload);
+    }
 
     onClose();
+  };
+  
+  const removeBatch = (batchId: string) => {
+      setTempBatches(prev => prev.filter(b => b.id !== batchId));
   };
 
   return (
@@ -244,8 +287,16 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
                 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <label className="block text-[8px] font-black text-emerald-600 uppercase tracking-widest text-center">Mám (ks)</label>
-                    <input required type="number" value={formData.currentPacks} min="0" onChange={e => setFormData({...formData, currentPacks: Number(e.target.value)})} className="w-full px-4 py-3.5 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-900 dark:text-emerald-100 rounded-xl font-black text-center text-[15px] outline-none border border-emerald-200 dark:border-emerald-800" />
+                    <label className="block text-[8px] font-black text-emerald-600 uppercase tracking-widest text-center">
+                      {editingItem ? 'Mám celkom (auto)' : 'Mám (ks)'}
+                    </label>
+                    {editingItem ? (
+                      <div className="w-full px-4 py-3.5 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-900 dark:text-emerald-100 rounded-xl font-black text-center text-[15px] border border-emerald-200 dark:border-emerald-800 opacity-60">
+                        {tempBatches.reduce((acc, b) => acc + b.quantity, 0)}
+                      </div>
+                    ) : (
+                      <input required type="number" value={formData.currentPacks} min="0" onChange={e => setFormData({...formData, currentPacks: Number(e.target.value)})} className="w-full px-4 py-3.5 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-900 dark:text-emerald-100 rounded-xl font-black text-center text-[15px] outline-none border border-emerald-200 dark:border-emerald-800" />
+                    )}
                   </div>
                   <div className="space-y-1.5">
                     <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest text-center">Cieľ (ks)</label>
@@ -254,18 +305,51 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
                 </div>
               </div>
 
+              {/* Batches Management Section (Only visible when editing) */}
+              {editingItem && (
+                <div className="space-y-3">
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Jednotlivé šarže a expirácie</label>
+                    <div className="bg-slate-50 dark:bg-slate-800/40 rounded-3xl p-4 border border-slate-100 dark:border-slate-800 space-y-2 max-h-40 overflow-y-auto">
+                        {tempBatches.map((batch, index) => (
+                            <div key={batch.id} className="flex items-center gap-3 bg-white dark:bg-slate-900 p-3 rounded-2xl border border-slate-100 dark:border-slate-800">
+                                <div className="flex-1">
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                                        {batch.expiryDate ? batch.expiryDate : 'Bez dátumu'}
+                                    </p>
+                                </div>
+                                <div className="text-sm font-black text-slate-900 dark:text-white">
+                                    {batch.quantity}ks
+                                </div>
+                                <button 
+                                    type="button"
+                                    onClick={() => removeBatch(batch.id)}
+                                    className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors"
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                </button>
+                            </div>
+                        ))}
+                        {tempBatches.length === 0 && (
+                            <p className="text-center text-[10px] text-slate-400 italic py-2">Žiadne naskladnené kusy</p>
+                        )}
+                    </div>
+                </div>
+              )}
+
               {/* Expirácia a Vlastná výroba v jednom riadku - Fix layoutu */}
               <div className="grid grid-cols-2 gap-4 items-stretch">
-                <div className="space-y-2">
-                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Spotrebujte do</label>
-                  <input 
-                    type="date" value={formData.expiryDate}
-                    onChange={e => setFormData({...formData, expiryDate: e.target.value})}
-                    className="w-full h-[60px] px-4 py-3 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white rounded-2xl outline-none font-bold text-[13px] border-none flex items-center justify-center text-center"
-                  />
-                </div>
+                {!editingItem && (
+                    <div className="space-y-2">
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Spotrebujte do</label>
+                    <input 
+                        type="date" value={formData.expiryDate}
+                        onChange={e => setFormData({...formData, expiryDate: e.target.value})}
+                        className="w-full h-[60px] px-4 py-3 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white rounded-2xl outline-none font-bold text-[13px] border-none flex items-center justify-center text-center"
+                    />
+                    </div>
+                )}
                 
-                <div className="space-y-2">
+                <div className={`space-y-2 ${editingItem ? 'col-span-2' : ''}`}>
                   <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Pôvod produktu</label>
                   <div className="flex h-[60px] bg-slate-100 dark:bg-slate-800 rounded-2xl overflow-hidden p-1">
                      <button

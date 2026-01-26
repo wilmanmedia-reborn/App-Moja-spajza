@@ -10,9 +10,11 @@ interface Props {
   onDelete: (id: string) => void;
   onEdit: (item: FoodItem) => void;
   onAddToShoppingList: (item: FoodItem) => void;
+  onQuickAdd: (item: FoodItem) => void;
+  onConsume: (item: FoodItem) => void;
 }
 
-export const InventoryItemCard: React.FC<Props> = ({ item, location, category, onUpdate, onDelete, onEdit, onAddToShoppingList }) => {
+export const InventoryItemCard: React.FC<Props> = ({ item, location, category, onDelete, onEdit, onAddToShoppingList, onQuickAdd, onConsume }) => {
   const percentage = (item.currentQuantity / item.totalQuantity) * 100;
   const isOverstocked = item.currentQuantity > item.totalQuantity;
   const isStarted = item.currentQuantity < item.totalQuantity && item.currentQuantity > 0;
@@ -152,11 +154,13 @@ export const InventoryItemCard: React.FC<Props> = ({ item, location, category, o
           </div>
         </div>
 
-        {/* Expiry Section */}
+        {/* Expiry Section - Shows Earliest */}
         <div className="mt-6 h-20">
           {item.expiryDate ? (
             <>
-              <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 ml-1">Spotrebujte do</p>
+              <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 ml-1">
+                {(item.batches && item.batches.length > 1) ? 'Najbližšia spotreba' : 'Spotrebujte do'}
+              </p>
               <div className={`p-3.5 rounded-2xl flex items-center justify-between text-[11px] font-black uppercase tracking-wider ${isUrgent ? 'bg-red-500 text-white shadow-lg shadow-red-500/20' : isExpiringSoon ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400' : 'bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400'}`}>
                 <span className="flex items-center gap-2">
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -177,20 +181,14 @@ export const InventoryItemCard: React.FC<Props> = ({ item, location, category, o
         {/* Buttons Section */}
         <div className="mt-auto grid grid-cols-2 gap-3 pt-6">
           <button 
-            onClick={() => {
-              const step = packSize;
-              onUpdate(item.id, { currentQuantity: Math.max(0, item.currentQuantity - step) });
-            }}
+            onClick={() => onConsume(item)}
             className="py-4 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-2xl text-[10px] font-black uppercase tracking-widest border border-slate-100 dark:border-slate-700 transition-all flex flex-col items-center active:scale-95"
           >
             <span>odobral som</span>
             <span className="opacity-50 text-[9px] lowercase">-1 ks</span>
           </button>
           <button 
-            onClick={() => {
-              const step = packSize;
-              onUpdate(item.id, { currentQuantity: item.currentQuantity + step });
-            }}
+            onClick={() => onQuickAdd(item)}
             className="py-4 bg-emerald-50 dark:bg-emerald-950/30 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400 rounded-2xl text-[10px] font-black uppercase tracking-widest border border-emerald-100 dark:border-emerald-800/50 transition-all flex flex-col items-center active:scale-95"
           >
             <span>doplnil som</span>

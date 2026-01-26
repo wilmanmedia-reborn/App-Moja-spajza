@@ -6,7 +6,8 @@ import { AddItemModal } from './components/AddItemModal';
 import { ShoppingList } from './components/ShoppingList';
 import { ManageMetadataModal } from './components/ManageMetadataModal';
 import { AuthScreen } from './components/AuthScreen';
-import { FoodItem, Location, Category, Unit, ShoppingItem, User } from './types';
+import { QuickAddModal } from './components/QuickAddModal';
+import { FoodItem, Location, Category, Unit, ShoppingItem, User, Batch } from './types';
 import { INITIAL_LOCATIONS, INITIAL_CATEGORIES, MOCK_ITEMS } from './constants';
 import { getRecipeSuggestions } from './geminiService';
 
@@ -43,7 +44,29 @@ const App: React.FC = () => {
 
   const [items, setItems] = useState<FoodItem[]>(() => {
     const saved = localStorage.getItem('pantry_items');
-    return saved ? JSON.parse(saved) : MOCK_ITEMS;
+    let parsedItems = saved ? JSON.parse(saved) : MOCK_ITEMS;
+    
+    // MIGRÁCIA: Ak položka nemá batches, vytvoríme defaultný batch zo súčasných dát
+    parsedItems = parsedItems.map((item: FoodItem) => {
+      if (!item.batches || item.batches.length === 0) {
+        if (item.currentQuantity > 0) {
+          return {
+            ...item,
+            batches: [{
+              id: Math.random().toString(36).substr(2, 9),
+              quantity: item.currentQuantity,
+              expiryDate: item.expiryDate,
+              addedDate: Date.now()
+            }]
+          };
+        } else {
+          return { ...item, batches: [] };
+        }
+      }
+      return item;
+    });
+    
+    return parsedItems;
   });
 
   const [shoppingList, setShoppingList] = useState<ShoppingItem[]>(() => {
@@ -58,10 +81,9 @@ const App: React.FC = () => {
   const [editingItem, setEditingItem] = useState<FoodItem | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [aiSuggestions, setAiSuggestions] = useState<string | null>(null);
-  const [isOffline, setIsOffline] = useState(!navigator.onLine);
-
-  const locationScrollRef = useRef<HTMLDivElement>(null);
-  const categoryScrollRef = useRef<HTMLDivElement>(null);
+  
+  // State pre Quick Add Modal
+  const [quickAddModalItem, setQuickAddModalItem] = useState<FoodItem | null>(null);
 
   useEffect(() => {
     localStorage.setItem('pantry_theme', theme);
@@ -78,30 +100,25 @@ const App: React.FC = () => {
     localStorage.setItem('pantry_view_mode', viewMode);
   }, [items, shoppingList, locations, categories, viewMode]);
 
-  const scroll = (ref: React.RefObject<HTMLDivElement | null>, direction: 'left' | 'right') => {
-    if (ref.current) {
-      const scrollAmount = 300;
-      ref.current.scrollBy({
-        left: direction === 'left' ? -scrollAmount : scrollAmount,
-        behavior: 'smooth'
-      });
-    }
-  };
-
   const handleLogin = (user: User) => {
     setCurrentUser(user);
   };
 
-  const handleLogout = () => {
-    // Odhlásenie teraz len resetne Test-Usera v pamäti (pri reštarte sa vráti)
-    setCurrentUser(null);
-  };
-
   const handleAddItem = (newItem: Omit<FoodItem, 'id' | 'lastUpdated' | 'householdId'>) => {
     if (!currentUser) return;
+    
+    // Vytvorenie iniciálneho batchu
+    const initialBatch: Batch = {
+      id: Math.random().toString(36).substr(2, 9),
+      quantity: newItem.currentQuantity,
+      expiryDate: newItem.expiryDate,
+      addedDate: Date.now()
+    };
+
     const item: FoodItem = {
       ...newItem,
       id: Math.random().toString(36).substr(2, 9),
+      batches: [initialBatch],
       lastUpdated: Date.now(),
       householdId: currentUser.householdId
     };
@@ -109,7 +126,111 @@ const App: React.FC = () => {
   };
 
   const handleUpdateItem = (id: string, updates: Partial<FoodItem>) => {
-    setItems(prev => prev.map(item => item.id === id ? { ...item, ...updates, lastUpdated: Date.now() } : item));
+    setItems(prev => prev.map(item => {
+      if (item.id !== id) return item;
+      
+      const updatedItem = { ...item, ...updates, lastUpdated: Date.now() };
+      
+      // Ak aktualizácia neobsahuje batches, ale mení currentQuantity priamo (napr. cez modal),
+      // musíme prepočítať batches. Toto je zložité, preto preferujeme prácu s batches.
+      // Pre jednoduchosť v Modale pri priamej zmene čísla: resetujeme batche na jeden "zlúčený".
+      // Alebo lepšie: AddItemModal bude teraz manažovať batches.
+      
+      return updatedItem;
+    }));
+  };
+
+  // --- LOGIKA PRE QUICK ADD (+1) ---
+  const handleTriggerQuickAdd = (item: FoodItem) => {
+    setQuickAddModalItem(item);
+  };
+
+  const confirmQuickAdd = (expiryDate: string | undefined) => {
+    if (!quickAddModalItem) return;
+    
+    const packSize = quickAddModalItem.quantityPerPack || quickAddModalItem.totalQuantity || 1; // Default 1 pre KS
+    // Pre jednotky ako g/ml pridáme "obsah balenia", pre KS pridáme 1.
+    const qtyToAdd = quickAddModalItem.unit === Unit.KS ? 1 : (quickAddModalItem.quantityPerPack || 1);
+
+    const newBatch: Batch = {
+      id: Math.random().toString(36).substr(2, 9),
+      quantity: qtyToAdd,
+      expiryDate: expiryDate,
+      addedDate: Date.now()
+    };
+
+    setItems(prev => prev.map(i => {
+      if (i.id !== quickAddModalItem.id) return i;
+      
+      const updatedBatches = [...(i.batches || []), newBatch];
+      
+      // Recalculate global expiry (earliest one)
+      const sortedBatches = [...updatedBatches].sort((a, b) => {
+          if (!a.expiryDate) return 1;
+          if (!b.expiryDate) return -1;
+          return new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime();
+      });
+      const nearestExpiry = sortedBatches.find(b => b.expiryDate)?.expiryDate;
+
+      return {
+        ...i,
+        currentQuantity: i.currentQuantity + qtyToAdd,
+        batches: updatedBatches,
+        expiryDate: nearestExpiry || i.expiryDate // update nearest shown date
+      };
+    }));
+
+    setQuickAddModalItem(null);
+  };
+
+  // --- LOGIKA PRE CONSUME (-1) FIFO ---
+  const handleConsume = (item: FoodItem) => {
+    const packSize = item.unit === Unit.KS ? 1 : (item.quantityPerPack || 1);
+    const qtyToRemove = packSize;
+
+    if (item.currentQuantity <= 0) return;
+
+    // Sort batches: oldest expiry first. Null expiry goes last.
+    // FIFO: Spotrebujeme z najstaršej šarže.
+    const sortedBatches = [...(item.batches || [])].sort((a, b) => {
+      if (!a.expiryDate && !b.expiryDate) return a.addedDate - b.addedDate;
+      if (!a.expiryDate) return 1; // null date at the end
+      if (!b.expiryDate) return -1;
+      return new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime();
+    });
+
+    let remainingToRemove = qtyToRemove;
+    const newBatches: Batch[] = [];
+
+    for (const batch of sortedBatches) {
+      if (remainingToRemove <= 0) {
+        newBatches.push(batch);
+        continue;
+      }
+
+      if (batch.quantity > remainingToRemove) {
+        // Z tejto várky odoberieme len časť
+        newBatches.push({ ...batch, quantity: batch.quantity - remainingToRemove });
+        remainingToRemove = 0;
+      } else {
+        // Celú túto várku spotrebujeme
+        remainingToRemove -= batch.quantity;
+        // Batch nepridáme do newBatches (vymaže sa)
+      }
+    }
+
+    // Prepočet novej globálnej expirácie
+    const nextNearestBatch = newBatches.sort((a, b) => {
+        if (!a.expiryDate) return 1;
+        if (!b.expiryDate) return -1;
+        return new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime();
+    })[0];
+
+    handleUpdateItem(item.id, {
+      currentQuantity: Math.max(0, item.currentQuantity - qtyToRemove),
+      batches: newBatches,
+      expiryDate: nextNearestBatch?.expiryDate
+    });
   };
 
   const handleDeleteItem = (id: string) => {
@@ -238,9 +359,10 @@ const App: React.FC = () => {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-8 sm:px-6">
+        {/* ... (stats sections removed for brevity, keeping existing structure) ... */}
         {activeTab === 'inventory' ? (
           <>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
               <button onClick={() => setFilterMode('all')} className={`text-left p-6 rounded-3xl border transition-all ${filterMode === 'all' ? 'bg-white dark:bg-slate-800 border-slate-900 dark:border-white' : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800/50'}`}>
                 <p className="text-[9px] uppercase font-black text-slate-400 tracking-widest">Inventár</p>
                 <p className="text-3xl font-black text-slate-900 dark:text-white">{stats.total}</p>
@@ -280,13 +402,48 @@ const App: React.FC = () => {
               {viewMode === 'grid' ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                   {filteredItems.map(item => (
-                    <InventoryItemCard key={item.id} item={item} location={locations.find(l => l.id === item.locationId)} category={categories.find(c => c.id === item.category)} onUpdate={handleUpdateItem} onDelete={handleDeleteItem} onEdit={handleEditItemTrigger} onAddToShoppingList={handleAddToShoppingList} />
+                    <InventoryItemCard 
+                      key={item.id} 
+                      item={item} 
+                      location={locations.find(l => l.id === item.locationId)} 
+                      category={categories.find(c => c.id === item.category)} 
+                      onUpdate={(id, updates) => {
+                         // Priamy update cez kartu (napr. len odobranie)
+                         if (updates.currentQuantity !== undefined && updates.currentQuantity < item.currentQuantity) {
+                           handleConsume(item);
+                         } else {
+                           handleUpdateItem(id, updates);
+                         }
+                      }} 
+                      onDelete={handleDeleteItem} 
+                      onEdit={handleEditItemTrigger} 
+                      onAddToShoppingList={handleAddToShoppingList} 
+                      onQuickAdd={handleTriggerQuickAdd}
+                      onConsume={handleConsume}
+                    />
                   ))}
                 </div>
               ) : (
                 <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800/50 overflow-hidden">
                   {filteredItems.map(item => (
-                    <InventoryItemRow key={item.id} item={item} location={locations.find(l => l.id === item.locationId)} category={categories.find(c => c.id === item.category)} onUpdate={handleUpdateItem} onDelete={handleDeleteItem} onEdit={handleEditItemTrigger} onAddToShoppingList={handleAddToShoppingList} />
+                    <InventoryItemRow 
+                      key={item.id} 
+                      item={item} 
+                      location={locations.find(l => l.id === item.locationId)} 
+                      category={categories.find(c => c.id === item.category)} 
+                      onUpdate={(id, updates) => {
+                         if (updates.currentQuantity !== undefined && updates.currentQuantity < item.currentQuantity) {
+                           handleConsume(item);
+                         } else {
+                           handleUpdateItem(id, updates);
+                         }
+                      }} 
+                      onDelete={handleDeleteItem} 
+                      onEdit={handleEditItemTrigger} 
+                      onAddToShoppingList={handleAddToShoppingList} 
+                      onQuickAdd={handleTriggerQuickAdd}
+                      onConsume={handleConsume}
+                    />
                   ))}
                 </div>
               )}
@@ -299,8 +456,17 @@ const App: React.FC = () => {
 
       <AddItemModal isOpen={isModalOpen} onClose={handleCloseModal} onAdd={handleAddItem} onUpdate={handleUpdateItem} onAddCategory={handleAddCategory} editingItem={editingItem} locations={locations} categories={categories} />
       <ManageMetadataModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} locations={locations} categories={categories} setLocations={setLocations} setCategories={setCategories} currentUser={currentUser} onUpdateUser={setCurrentUser} />
+      
+      {/* Quick Add Modal pre zadanie expirácie */}
+      <QuickAddModal 
+        isOpen={!!quickAddModalItem} 
+        onClose={() => setQuickAddModalItem(null)} 
+        onConfirm={confirmQuickAdd}
+        item={quickAddModalItem}
+      />
 
       <div className="fixed bottom-0 inset-x-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl border-t border-slate-200 dark:border-slate-800 p-2 pb-8 flex justify-around items-center z-50">
+        {/* ... navigation buttons ... */}
         <button onClick={() => setActiveTab('inventory')} className={`flex-1 flex flex-col items-center gap-1 p-3 rounded-2xl active:bg-slate-100 dark:active:bg-slate-800/50 transition-all ${activeTab === 'inventory' ? 'text-emerald-600' : 'text-slate-400'}`}>
           <span className="text-xl">🧺</span>
           <span className="text-[9px] font-black uppercase tracking-widest">Zásoby</span>
@@ -310,7 +476,7 @@ const App: React.FC = () => {
           onClick={() => setIsModalOpen(true)} 
           className="mx-2 w-12 h-12 bg-emerald-600 hover:bg-emerald-500 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-emerald-600/20 active:scale-90 transition-all"
         >
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M12 4v16m8-8H4" /></svg>
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M12 4v1m-3.322 3.322l-.707.707M5 12h1m3.322 3.322l-.707.707M12 19v1m3.322-3.322l.707.707M19 12h1m-3.322-3.322l.707-.707M12 12a4 4 0 110-8 4 4 0 010 8z" /></svg>
         </button>
         
         <button onClick={() => setActiveTab('shopping')} className={`flex-1 flex flex-col items-center gap-1 p-3 rounded-2xl active:bg-slate-100 dark:active:bg-slate-800/50 transition-all ${activeTab === 'shopping' ? 'text-emerald-600' : 'text-slate-400'}`}>

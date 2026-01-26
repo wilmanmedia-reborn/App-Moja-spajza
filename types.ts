@@ -28,6 +28,13 @@ export interface Location {
   icon: string;
 }
 
+export interface Batch {
+  id: string;
+  quantity: number;
+  expiryDate?: string; // Ak undefined, nemá expiráciu
+  addedDate: number;
+}
+
 export interface FoodItem {
   id: string;
   name: string;
@@ -37,7 +44,8 @@ export interface FoodItem {
   totalQuantity: number;
   unit: Unit;
   quantityPerPack?: number;
-  expiryDate?: string;
+  expiryDate?: string; // Legacy field for backwards compatibility or nearest expiry
+  batches?: Batch[]; // New field for managing multiple expiration dates
   isHomemade: boolean;
   lastUpdated: number;
   householdId: string;
