@@ -37,7 +37,7 @@ export const InventoryItemRow: React.FC<Props> = ({ item, location, category, on
       
       {/* Main Row Content - Clickable to expand */}
       <div 
-        className="flex items-center p-3 sm:p-5 gap-3 sm:gap-4 cursor-pointer"
+        className="flex items-center p-4 sm:p-5 gap-3 sm:gap-4 cursor-pointer"
         onClick={() => setIsExpanded(!isExpanded)}
       >
         {/* Category Icon with status ring */}

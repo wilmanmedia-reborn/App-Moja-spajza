@@ -25,7 +25,7 @@ export const ShoppingList: React.FC<Props> = ({ items, onUpdate, onDelete, onAdd
 
   return (
     <div className="max-w-2xl mx-auto px-2">
-      <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden mb-6">
+      <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden mb-6">
         <form onSubmit={handleSubmit} className="p-6 border-b border-slate-100 dark:border-slate-800 flex gap-3 bg-slate-50/50 dark:bg-slate-800/50">
           <input 
             type="text" 

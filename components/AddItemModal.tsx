@@ -146,7 +146,7 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
   return (
     <>
       <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-950/80 backdrop-blur-md px-0 sm:px-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
-        <div className="bg-white dark:bg-slate-900 w-full max-w-md h-[92vh] sm:h-auto sm:max-h-[85vh] rounded-t-[2.5rem] sm:rounded-[2.5rem] shadow-2xl flex flex-col border border-white/10 overflow-hidden animate-in slide-in-from-bottom duration-300">
+        <div className="bg-white dark:bg-slate-900 w-full max-w-md h-[92vh] sm:h-auto sm:max-h-[85vh] rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col border border-white/10 overflow-hidden animate-in slide-in-from-bottom duration-300">
           
           {/* Header */}
           <div className="px-6 py-5 flex justify-between items-center border-b border-slate-100 dark:border-slate-800 shrink-0">
@@ -210,7 +210,7 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
               </div>
 
               {/* Množstvá a jednotky - Fix centrovania a vizuálu */}
-              <div className="p-6 bg-slate-50 dark:bg-slate-800/40 rounded-[2.5rem] space-y-6 border border-slate-100 dark:border-slate-800">
+              <div className="p-6 bg-slate-50 dark:bg-slate-800/40 rounded-3xl space-y-6 border border-slate-100 dark:border-slate-800">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest text-center">Jednotka</label>
@@ -294,7 +294,7 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
             <button 
               onClick={handleSubmit}
               disabled={isAiProcessing || !formData.name} 
-              className="w-full py-5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-300 dark:disabled:bg-slate-800 text-white font-black rounded-[2.5rem] shadow-xl shadow-emerald-600/20 transition-all uppercase tracking-widest text-[14px] active:scale-95 flex items-center justify-center gap-3"
+              className="w-full py-5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-300 dark:disabled:bg-slate-800 text-white font-black rounded-3xl shadow-xl shadow-emerald-600/20 transition-all uppercase tracking-widest text-[14px] active:scale-95 flex items-center justify-center gap-3"
             >
               {isAiProcessing ? (
                 <>

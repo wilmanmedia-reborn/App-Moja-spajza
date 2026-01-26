@@ -40,7 +40,7 @@ export const InventoryItemCard: React.FC<Props> = ({ item, location, category, o
   const isSegmented = totalPacks > 0 && totalPacks <= 12;
 
   return (
-    <div className={`bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-sm border-2 transition-all duration-300 relative overflow-hidden flex flex-col group ${isUrgent ? 'border-red-500/50 dark:border-red-500/30' : isRunningLow ? 'border-amber-500/50 dark:border-amber-500/30 shadow-lg shadow-amber-500/5' : 'border-slate-100 dark:border-slate-800 hover:border-emerald-500/50 dark:hover:border-emerald-500/30'}`}>
+    <div className={`bg-white dark:bg-slate-900 rounded-3xl shadow-sm border-2 transition-all duration-300 relative overflow-hidden flex flex-col group ${isUrgent ? 'border-red-500/50 dark:border-red-500/30' : isRunningLow ? 'border-amber-500/50 dark:border-amber-500/30 shadow-lg shadow-amber-500/5' : 'border-slate-100 dark:border-slate-800 hover:border-emerald-500/50 dark:hover:border-emerald-500/30'}`}>
       
       {/* Action floating buttons */}
       <div className="absolute top-4 left-4 z-10 flex gap-2">
