@@ -145,7 +145,7 @@ export const ManageMetadataModal: React.FC<Props> = ({
         <div className="p-8 max-h-[60vh] overflow-y-auto no-scrollbar">
           {activeSubTab === 'household' ? (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-              <div className="p-6 bg-slate-50 dark:bg-slate-800 rounded-[2rem] border border-slate-100 dark:border-slate-700">
+              <div className="p-6 bg-slate-50 dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700">
                 <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Záloha a prenos dát</h4>
                 <div className="grid grid-cols-1 gap-3">
                   <button 
@@ -167,7 +167,7 @@ export const ManageMetadataModal: React.FC<Props> = ({
                 </p>
               </div>
 
-              <div className="bg-slate-50 dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-700 text-center">
+              <div className="bg-slate-50 dark:bg-slate-800 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 text-center">
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Zdieľací kód domácnosti</p>
                 <div className="text-4xl font-black text-emerald-600 dark:text-emerald-400 tracking-[0.2em]">
                   {currentUser?.householdId}
@@ -193,7 +193,7 @@ export const ManageMetadataModal: React.FC<Props> = ({
                 ))}
               </div>
 
-              <form onSubmit={handleAdd} className="p-6 bg-emerald-50 dark:bg-emerald-950/20 rounded-[2rem] border-2 border-emerald-100 dark:border-emerald-900/50">
+              <form onSubmit={handleAdd} className="p-6 bg-emerald-50 dark:bg-emerald-950/20 rounded-[2.5rem] border-2 border-emerald-100 dark:border-emerald-900/50">
                 <h4 className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest mb-4">Pridať novú {activeSubTab === 'locations' ? 'lokalitu' : 'kategóriu'}</h4>
                 <div className="flex gap-3">
                   <input 

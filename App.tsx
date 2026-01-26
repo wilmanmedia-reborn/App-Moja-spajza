@@ -241,26 +241,26 @@ const App: React.FC = () => {
         {activeTab === 'inventory' ? (
           <>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-              <button onClick={() => setFilterMode('all')} className={`text-left p-6 rounded-[2rem] border transition-all ${filterMode === 'all' ? 'bg-white dark:bg-slate-800 border-slate-900 dark:border-white' : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800/50'}`}>
+              <button onClick={() => setFilterMode('all')} className={`text-left p-6 rounded-[2.5rem] border transition-all ${filterMode === 'all' ? 'bg-white dark:bg-slate-800 border-slate-900 dark:border-white' : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800/50'}`}>
                 <p className="text-[9px] uppercase font-black text-slate-400 tracking-widest">Inventár</p>
                 <p className="text-3xl font-black text-slate-900 dark:text-white">{stats.total}</p>
               </button>
-              <button onClick={() => setFilterMode('low')} className={`text-left p-6 rounded-[2rem] border transition-all ${filterMode === 'low' ? 'bg-amber-50 dark:bg-amber-950/30 border-amber-500' : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800/50'}`}>
+              <button onClick={() => setFilterMode('low')} className={`text-left p-6 rounded-[2.5rem] border transition-all ${filterMode === 'low' ? 'bg-amber-50 dark:bg-amber-950/30 border-amber-500' : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800/50'}`}>
                 <p className="text-[9px] uppercase font-black text-amber-600 tracking-widest">Dochádza</p>
                 <p className="text-3xl font-black text-amber-600 dark:text-amber-400">{stats.lowStock}</p>
               </button>
-              <button onClick={() => setFilterMode('expiring')} className={`text-left p-6 rounded-[2rem] border transition-all ${filterMode === 'expiring' ? 'bg-red-50 dark:bg-red-900/30 border-red-500' : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800/50'}`}>
+              <button onClick={() => setFilterMode('expiring')} className={`text-left p-6 rounded-[2.5rem] border transition-all ${filterMode === 'expiring' ? 'bg-red-50 dark:bg-red-900/30 border-red-500' : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800/50'}`}>
                 <p className="text-[9px] uppercase font-black text-red-600 tracking-widest">Expirácia</p>
                 <p className="text-3xl font-black text-red-600 dark:text-red-400">{stats.expiring}</p>
               </button>
-              <div className="p-6 rounded-[2rem] bg-indigo-600 text-white cursor-pointer" onClick={handleAiAdvice}>
-                <p className="text-[9px] uppercase font-black text-indigo-200 tracking-widest mb-1">AI Recepty</p>
+              <div className="p-6 rounded-[2.5rem] bg-indigo-600 text-white cursor-pointer" onClick={handleAiAdvice}>
+                <p className="text-[9px] uppercase font-black text-indigo-200 tracking-widest mb-1">Recepty zo špajze</p>
                 <p className="text-sm font-black leading-tight">Čo uvariť?</p>
               </div>
             </div>
 
             {aiSuggestions && (
-              <div className="bg-white dark:bg-slate-900 rounded-[3rem] p-8 mb-8 border border-indigo-500/30 relative">
+              <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-8 mb-8 border border-indigo-500/30 relative">
                 <button onClick={() => setAiSuggestions(null)} className="absolute top-4 right-4 text-slate-400">✕</button>
                 <div className="prose dark:prose-invert max-w-none text-slate-700 dark:text-slate-300 whitespace-pre-wrap font-medium">{aiSuggestions}</div>
               </div>
@@ -284,7 +284,7 @@ const App: React.FC = () => {
                   ))}
                 </div>
               ) : (
-                <div className="bg-white dark:bg-slate-900 rounded-[3rem] border border-slate-100 dark:border-slate-800/50 overflow-hidden">
+                <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/50 overflow-hidden">
                   {filteredItems.map(item => (
                     <InventoryItemRow key={item.id} item={item} location={locations.find(l => l.id === item.locationId)} category={categories.find(c => c.id === item.category)} onUpdate={handleUpdateItem} onDelete={handleDeleteItem} onEdit={handleEditItemTrigger} onAddToShoppingList={handleAddToShoppingList} />
                   ))}

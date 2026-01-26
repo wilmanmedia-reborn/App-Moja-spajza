@@ -210,7 +210,7 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
               </div>
 
               {/* Množstvá a jednotky - Fix centrovania a vizuálu */}
-              <div className="p-6 bg-slate-50 dark:bg-slate-800/40 rounded-[2rem] space-y-6 border border-slate-100 dark:border-slate-800">
+              <div className="p-6 bg-slate-50 dark:bg-slate-800/40 rounded-[2.5rem] space-y-6 border border-slate-100 dark:border-slate-800">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest text-center">Jednotka</label>
@@ -261,22 +261,27 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
                   <input 
                     type="date" value={formData.expiryDate}
                     onChange={e => setFormData({...formData, expiryDate: e.target.value})}
-                    className="w-full h-[60px] px-4 py-3 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white rounded-2xl outline-none font-bold text-[13px] border-none flex items-center"
+                    className="w-full h-[60px] px-4 py-3 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white rounded-2xl outline-none font-bold text-[13px] border-none flex items-center justify-center text-center"
                   />
                 </div>
                 
                 <div className="space-y-2">
                   <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Pôvod produktu</label>
-                  <div 
-                    onClick={() => setFormData(prev => ({ ...prev, isHomemade: !prev.isHomemade }))}
-                    className={`flex flex-col items-center justify-center p-2 rounded-2xl cursor-pointer transition-all border-2 h-[60px] ${formData.isHomemade ? 'bg-amber-500/10 border-amber-500' : 'bg-slate-100 dark:bg-slate-800 border-transparent'}`}
-                  >
-                    <span className={`text-[8px] font-black uppercase tracking-widest mb-1.5 ${formData.isHomemade ? 'text-amber-600' : 'text-slate-400'}`}>
-                      {formData.isHomemade ? 'Vlastná výroba' : 'Z obchodu'}
-                    </span>
-                    <div className={`w-10 h-5 rounded-full relative transition-colors ${formData.isHomemade ? 'bg-amber-500' : 'bg-slate-300 dark:bg-slate-700'}`}>
-                      <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${formData.isHomemade ? 'translate-x-[20px]' : 'translate-x-[2px]'}`}></div>
-                    </div>
+                  <div className="flex h-[60px] bg-slate-100 dark:bg-slate-800 rounded-2xl overflow-hidden p-1">
+                     <button
+                       type="button"
+                       onClick={() => setFormData(prev => ({ ...prev, isHomemade: false }))}
+                       className={`flex-1 flex items-center justify-center rounded-xl text-[8px] font-black uppercase tracking-widest transition-all ${!formData.isHomemade ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                     >
+                       Obchod
+                     </button>
+                     <button
+                       type="button"
+                       onClick={() => setFormData(prev => ({ ...prev, isHomemade: true }))}
+                       className={`flex-1 flex items-center justify-center rounded-xl text-[8px] font-black uppercase tracking-widest transition-all ${formData.isHomemade ? 'bg-amber-500 text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                     >
+                       Domáce
+                     </button>
                   </div>
                 </div>
               </div>
@@ -289,7 +294,7 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
             <button 
               onClick={handleSubmit}
               disabled={isAiProcessing || !formData.name} 
-              className="w-full py-5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-300 dark:disabled:bg-slate-800 text-white font-black rounded-[2rem] shadow-xl shadow-emerald-600/20 transition-all uppercase tracking-widest text-[14px] active:scale-95 flex items-center justify-center gap-3"
+              className="w-full py-5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-300 dark:disabled:bg-slate-800 text-white font-black rounded-[2.5rem] shadow-xl shadow-emerald-600/20 transition-all uppercase tracking-widest text-[14px] active:scale-95 flex items-center justify-center gap-3"
             >
               {isAiProcessing ? (
                 <>
