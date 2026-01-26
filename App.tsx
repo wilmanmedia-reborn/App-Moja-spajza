@@ -301,14 +301,19 @@ const App: React.FC = () => {
       <ManageMetadataModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} locations={locations} categories={categories} setLocations={setLocations} setCategories={setCategories} currentUser={currentUser} onUpdateUser={setCurrentUser} />
 
       <div className="fixed bottom-0 inset-x-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl border-t border-slate-200 dark:border-slate-800 p-2 pb-8 flex justify-around items-center z-50">
-        <button onClick={() => setActiveTab('inventory')} className={`flex-1 flex flex-col items-center gap-2 p-3 ${activeTab === 'inventory' ? 'text-emerald-600' : 'text-slate-400'}`}>
+        <button onClick={() => setActiveTab('inventory')} className={`flex-1 flex flex-col items-center gap-1 p-3 rounded-2xl active:bg-slate-100 dark:active:bg-slate-800/50 transition-all ${activeTab === 'inventory' ? 'text-emerald-600' : 'text-slate-400'}`}>
           <span className="text-xl">🧺</span>
           <span className="text-[9px] font-black uppercase tracking-widest">Zásoby</span>
         </button>
-        <button onClick={() => setIsModalOpen(true)} className="w-14 h-14 bg-emerald-600 rounded-full flex items-center justify-center text-white shadow-xl -mt-8 border-4 border-slate-50 dark:border-slate-950">
-          <span className="text-3xl">+</span>
+        
+        <button 
+          onClick={() => setIsModalOpen(true)} 
+          className="mx-2 w-12 h-12 bg-emerald-600 hover:bg-emerald-500 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-emerald-600/20 active:scale-90 transition-all"
+        >
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M12 4v16m8-8H4" /></svg>
         </button>
-        <button onClick={() => setActiveTab('shopping')} className={`flex-1 flex flex-col items-center gap-2 p-3 ${activeTab === 'shopping' ? 'text-emerald-600' : 'text-slate-400'}`}>
+        
+        <button onClick={() => setActiveTab('shopping')} className={`flex-1 flex flex-col items-center gap-1 p-3 rounded-2xl active:bg-slate-100 dark:active:bg-slate-800/50 transition-all ${activeTab === 'shopping' ? 'text-emerald-600' : 'text-slate-400'}`}>
           <span className="text-xl">🛒</span>
           <span className="text-[9px] font-black uppercase tracking-widest">Nákup</span>
         </button>
