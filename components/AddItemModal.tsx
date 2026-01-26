@@ -294,7 +294,7 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
             <button 
               onClick={handleSubmit}
               disabled={isAiProcessing || !formData.name} 
-              className="w-full py-5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-300 dark:disabled:bg-slate-800 text-white font-black rounded-3xl shadow-xl shadow-emerald-600/20 transition-all uppercase tracking-widest text-[14px] active:scale-95 flex items-center justify-center gap-3"
+              className="w-full py-5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-300 dark:disabled:bg-slate-800 text-white font-black rounded-2xl shadow-xl shadow-emerald-600/20 transition-all uppercase tracking-widest text-[14px] active:scale-95 flex items-center justify-center gap-3"
             >
               {isAiProcessing ? (
                 <>

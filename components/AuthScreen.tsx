@@ -107,7 +107,7 @@ export const AuthScreen: React.FC<Props> = ({ onLogin }) => {
             </div>
           )}
 
-          <button type="submit" className="w-full py-5 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-[2rem] shadow-xl shadow-emerald-600/20 transition-all uppercase tracking-widest text-sm active:scale-95">
+          <button type="submit" className="w-full py-5 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-2xl shadow-xl shadow-emerald-600/20 transition-all uppercase tracking-widest text-sm active:scale-95">
             {isRegistering ? 'Vytvoriť účet' : 'Prihlásiť sa'}
           </button>
         </form>
