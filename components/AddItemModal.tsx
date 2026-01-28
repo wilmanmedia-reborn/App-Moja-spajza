@@ -205,11 +205,11 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
                 {value}
             </div>
         ) : (
-            <div className="flex items-center h-[60px] bg-slate-100 dark:bg-slate-800 rounded-2xl p-1.5 gap-2">
+            <div className="flex items-center h-[60px] bg-slate-100 dark:bg-slate-800 rounded-2xl p-1 gap-1">
                 <button 
                     type="button"
                     onClick={() => onChange(Math.max(min, value - 1))}
-                    className="w-12 h-full flex items-center justify-center bg-white dark:bg-slate-700 text-slate-900 dark:text-white rounded-xl shadow-sm text-lg font-black active:scale-95 transition-transform"
+                    className="w-11 h-full flex shrink-0 items-center justify-center bg-white dark:bg-slate-700 text-slate-900 dark:text-white rounded-xl shadow-sm text-lg font-black active:scale-95 transition-transform"
                 >
                     -
                 </button>
@@ -219,16 +219,15 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
                     min={min}
                     onChange={(e) => {
                         const val = e.target.value;
-                        // Ak je prázdne, nastav 0, inak parsuj číslo
                         onChange(val === '' ? 0 : parseInt(val) || 0);
                     }}
-                    onFocus={(e) => e.target.select()} // TOTO OPRAVUJE "05" PROBLÉM - označí všetko pri kliknutí
-                    className="flex-1 w-full bg-transparent text-center font-black text-xl text-slate-900 dark:text-white outline-none border-none p-0 appearance-none m-0"
+                    onFocus={(e) => e.target.select()}
+                    className="flex-1 w-full min-w-0 bg-transparent text-center font-black text-lg text-slate-900 dark:text-white outline-none border-none p-0 appearance-none m-0 truncate"
                 />
                 <button 
                     type="button"
                     onClick={() => onChange(value + 1)}
-                    className="w-12 h-full flex items-center justify-center bg-emerald-500 text-white rounded-xl shadow-sm shadow-emerald-500/30 text-lg font-black active:scale-95 transition-transform"
+                    className="w-11 h-full flex shrink-0 items-center justify-center bg-emerald-500 text-white rounded-xl shadow-sm shadow-emerald-500/30 text-lg font-black active:scale-95 transition-transform"
                 >
                     +
                 </button>
@@ -239,7 +238,7 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
 
   return (
     <>
-      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-950/80 backdrop-blur-md px-0 sm:px-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-slate-950/80 backdrop-blur-md px-0 sm:px-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
         <div className="bg-white dark:bg-slate-900 w-full max-w-md h-[92vh] sm:h-auto sm:max-h-[85vh] rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col border border-white/10 overflow-hidden animate-in slide-in-from-bottom duration-300">
           
           {/* Header */}
@@ -438,7 +437,7 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
           </div>
 
           {/* Footer */}
-          <div className="px-6 py-6 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 shrink-0 shadow-[0_-10px_20px_rgba(0,0,0,0.05)]">
+          <div className="px-6 py-6 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 shrink-0 shadow-[0_-10px_20px_rgba(0,0,0,0.05)] pb-safe">
             <button 
               onClick={handleSubmit}
               disabled={isAiProcessing || !formData.name} 
@@ -484,6 +483,9 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
         }
         input[type=number] {
             -moz-appearance: textfield;
+        }
+        .pb-safe {
+            padding-bottom: max(1.5rem, env(safe-area-inset-bottom) + 0.5rem);
         }
       `}</style>
     </>
