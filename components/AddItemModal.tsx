@@ -125,6 +125,12 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
     e.preventDefault();
     if (!formData.name) return;
 
+    // --- VALIDÁCIA: Obsah balenia musí byť vyplnený, ak nejde o kusy ---
+    if (formData.unit !== Unit.KS && (!formData.quantityPerPack || formData.quantityPerPack <= 0)) {
+        alert("Pre zvolenú jednotku (" + formData.unit + ") musíte zadať obsah jedného balenia (napr. koľko gramov má 1 kus).\n\nAk chcete evidovať len počet kusov, zmeňte Jednotku na 'ks'.");
+        return;
+    }
+
     const isKs = formData.unit === Unit.KS;
     const total = isKs ? formData.targetPacks : formData.targetPacks * formData.quantityPerPack;
     
@@ -329,6 +335,7 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
                         value={formData.quantityPerPack || ''} 
                         onChange={e => setFormData({...formData, quantityPerPack: Number(e.target.value)})} 
                         onFocus={(e) => e.target.select()}
+                        placeholder={formData.unit !== Unit.KS ? "0" : ""}
                         className="w-full px-4 py-3.5 bg-white dark:bg-slate-900 text-slate-900 dark:text-white rounded-xl font-black text-center text-[15px] border border-slate-200 dark:border-slate-700 outline-none focus:ring-2 focus:ring-emerald-500/20 h-[60px]" 
                       />
                       {formData.unit !== Unit.KS && (
