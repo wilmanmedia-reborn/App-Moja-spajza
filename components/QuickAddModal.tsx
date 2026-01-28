@@ -36,15 +36,16 @@ export const QuickAddModal: React.FC<Props> = ({ isOpen, onClose, onConfirm, ite
         <form onSubmit={handleSubmit} className="w-full flex flex-col gap-6">
           <div className="w-full space-y-2">
             <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 text-center sm:text-left">Expirácia nového kusu</label>
-            {/* Zmena: py-0 namiesto chýbajúceho paddingu, explicitne definovaný pre konzistenciu */}
-            <input 
-              type="date" 
-              value={expiryDate}
-              onChange={e => setExpiryDate(e.target.value)}
-              className="block w-full h-[60px] px-4 py-0 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white rounded-2xl outline-none font-bold text-[15px] border-2 border-transparent focus:border-emerald-500/30 text-center shadow-sm appearance-none"
-              style={{ WebkitAppearance: 'none' }}
-              autoFocus
-            />
+            <div className="relative">
+                <input 
+                  type="date" 
+                  value={expiryDate}
+                  onChange={e => setExpiryDate(e.target.value)}
+                  className={`block w-full py-[19px] px-4 bg-slate-100 dark:bg-slate-800 rounded-2xl outline-none font-bold text-[15px] border-2 border-transparent focus:border-emerald-500/30 text-center shadow-sm appearance-none ${expiryDate ? 'text-slate-900 dark:text-white' : 'text-transparent empty-date'}`}
+                  style={{ WebkitAppearance: 'none' }}
+                  autoFocus
+                />
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3 w-full">

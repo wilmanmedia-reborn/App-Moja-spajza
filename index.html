@@ -68,22 +68,45 @@
 
         /* --- FIXY PRE DATE INPUT --- */
         
-        /* 1. Zmena farby ikony kalendára v Dark Mode na bielu */
+        input[type="date"] {
+            /* iOS Reset - odstráni natívne štýly */
+            -webkit-appearance: none;
+            appearance: none;
+            display: block;
+            /* Na iOS je najlepšie centrovať pomocou paddingu, nie line-height */
+            line-height: normal;
+        }
+
+        /* Ikona kalendára v Dark Mode */
         html.dark input[type="date"]::-webkit-calendar-picker-indicator {
             filter: invert(1);
             opacity: 0.8;
             cursor: pointer;
         }
 
-        /* 2. Fix vertikálneho zarovnania na iOS */
-        input[type="date"] {
-            display: block;
-            /* Na iOS musíme odstrániť padding, inak to s fixnou výškou tlačí text hore */
-            padding-top: 0 !important; 
-            padding-bottom: 0 !important;
-            /* Line-height musí byť rovnaký ako height inputu pre vycentrovanie */
-            line-height: 60px !important;
-            min-height: 60px;
+        /* --- iOS Placeholder Hack --- */
+        /* Keď je trieda .empty-date aktívna, skryjeme natívny text (ak nejaký je) a zobrazíme pseudo-element */
+        
+        input[type="date"].empty-date {
+            color: transparent !important; /* Skryje natívny 'placeholder' ak by tam nejaký bol */
+        }
+
+        input[type="date"].empty-date::before {
+            content: 'DD. MM. RRRR'; /* Náš vlastný placeholder */
+            color: #94a3b8; /* text-slate-400 */
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 100%;
+            pointer-events: none; /* Aby sa dalo klikať cez text */
+            
+            /* Štýlovanie textu aby sedelo s dizajnom */
+            font-weight: 700;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            text-align: center;
         }
     </style>
 <script type="importmap">
