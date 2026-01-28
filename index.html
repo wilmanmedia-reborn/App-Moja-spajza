@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="sk">
 <head>
@@ -63,6 +64,26 @@
             padding-bottom: env(safe-area-inset-bottom);
             padding-top: env(safe-area-inset-top);
             -webkit-tap-highlight-color: transparent;
+        }
+
+        /* --- FIXY PRE DATE INPUT --- */
+        
+        /* 1. Zmena farby ikony kalendára v Dark Mode na bielu */
+        html.dark input[type="date"]::-webkit-calendar-picker-indicator {
+            filter: invert(1);
+            opacity: 0.8;
+            cursor: pointer;
+        }
+
+        /* 2. Fix vertikálneho zarovnania na iOS */
+        input[type="date"] {
+            display: block;
+            /* Na iOS musíme odstrániť padding, inak to s fixnou výškou tlačí text hore */
+            padding-top: 0 !important; 
+            padding-bottom: 0 !important;
+            /* Line-height musí byť rovnaký ako height inputu pre vycentrovanie */
+            line-height: 60px !important;
+            min-height: 60px;
         }
     </style>
 <script type="importmap">

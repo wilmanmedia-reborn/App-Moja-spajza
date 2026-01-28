@@ -338,10 +338,11 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
                 {!editingItem && (
                     <div className="space-y-2 min-w-0">
                     <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Spotrebujte do</label>
+                    {/* Zmena: py-0 namiesto py-3 pre fix centrovania na iOS */}
                     <input 
                         type="date" value={formData.expiryDate}
                         onChange={e => setFormData({...formData, expiryDate: e.target.value})}
-                        className="block w-full h-[60px] px-4 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white rounded-2xl outline-none font-bold text-[13px] border-none text-center appearance-none"
+                        className="block w-full h-[60px] px-4 py-0 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white rounded-2xl outline-none font-bold text-[13px] border-none text-center appearance-none"
                         style={{ WebkitAppearance: 'none' }}
                     />
                     </div>
