@@ -30,16 +30,16 @@ export const BarcodeScanner: React.FC<Props> = ({ onScan, onClose, isAnalyzing }
         html5QrCode = new Html5Qrcode(containerId);
         scannerRef.current = html5QrCode;
 
-        // Vylepšené rozmery skenovacieho okna (širšie pre EAN kódy)
+        // Vylepšené rozmery skenovacieho okna
         const qrboxFunction = (viewWidth: number, viewHeight: number) => {
             const minEdge = Math.min(viewWidth, viewHeight);
             const width = Math.floor(minEdge * 0.8); // 80% šírky
-            const height = Math.floor(width * 0.5);  // Obdĺžnik (nie štvorec)
+            const height = Math.floor(width * 0.5);  // Široký obdĺžnik pre EAN
             return { width, height };
         };
 
         const config = { 
-          fps: 10, // Znížené FPS pre lepší autofocus na starších zariadeniach
+          fps: 10, 
           qrbox: qrboxFunction,
           aspectRatio: 1.0,
           experimentalFeatures: {
@@ -47,12 +47,13 @@ export const BarcodeScanner: React.FC<Props> = ({ onScan, onClose, isAnalyzing }
           }
         };
 
-        // Konfigurácia kamery pre lepšiu kvalitu a zoom
+        // FIX: Zjednodušená konfigurácia kamery. 
+        // Odstránené striktné 'min' a 'max' constraints, ktoré spôsobovali OverconstrainedError na iOS/niektorých Androidoch.
+        // Ponechané 'ideal' pre snahu o vyššiu kvalitu.
         const cameraConfig = { 
             facingMode: "environment",
-            focusMode: "continuous", // Dôležité pre vzdialenosť
-            width: { min: 1024, ideal: 1920, max: 3840 }, // Preferovať vysoké rozlíšenie
-            height: { min: 576, ideal: 1080, max: 2160 }
+            width: { ideal: 1920 },
+            height: { ideal: 1080 }
         };
 
         await html5QrCode.start(
@@ -67,49 +68,62 @@ export const BarcodeScanner: React.FC<Props> = ({ onScan, onClose, isAnalyzing }
           () => {} 
         );
         
-        // --- APLIKOVANIE ZOOMU (KĽÚČOVÉ PRE SKENOVANIE Z DIAĽKY) ---
+        // --- APLIKOVANIE POKROČILÝCH FUNKCIÍ (ZOOM & FOCUS) ---
         try {
-          const track = html5QrCode.getRunningTrackCapabilities();
+          const videoTrack = html5QrCode.videoElement?.srcObject?.getVideoTracks()[0];
           
-          // Detekcia blesku
-          if (track && track.torch) setHasTorch(true);
+          if (videoTrack) {
+             const capabilities = videoTrack.getCapabilities();
+             const constraints: any = { advanced: [] };
 
-          // Aplikovanie Zoomu ak je dostupný
-          // Väčšina telefónov má wide lens, zoom 1.5x - 2.0x pomáha čítať čiarové kódy
-          if (track && track.zoom) {
-              const videoTrack = html5QrCode.videoElement?.srcObject?.getVideoTracks()[0];
-              if (videoTrack) {
-                  const capabilities = videoTrack.getCapabilities();
-                  if (capabilities.zoom) {
-                      const currentZoom = track.zoom;
-                      const maxZoom = capabilities.zoom.max || 3;
-                      // Nastavíme zoom na cca 2.0 alebo polovicu maxima, podľa toho čo je menšie
-                      const targetZoom = Math.min(2.0, maxZoom); 
-                      
-                      if (targetZoom > currentZoom) {
-                          await videoTrack.applyConstraints({
-                              advanced: [{ zoom: targetZoom }]
-                          });
-                      }
-                  }
-              }
+             // 1. Detekcia a nastavenie Blesku
+             if (capabilities.torch) {
+                 setHasTorch(true);
+             }
+
+             // 2. Aplikovanie Zoomu (ak je dostupný) - pomáha pri skenovaní z diaľky
+             if (capabilities.zoom) {
+                 const currentZoom = videoTrack.getSettings().zoom || 1;
+                 const maxZoom = capabilities.zoom.max || 3;
+                 // Nastavíme zoom na 2.0x alebo polovicu maxima (podľa toho čo je menšie)
+                 const targetZoom = Math.min(2.0, maxZoom);
+                 
+                 if (targetZoom > currentZoom) {
+                    constraints.advanced.push({ zoom: targetZoom });
+                 }
+             }
+             
+             // 3. Aplikovanie Focusu (ak je dostupný)
+             if (capabilities.focusMode && Array.isArray(capabilities.focusMode)) {
+                 if (capabilities.focusMode.includes('continuous')) {
+                     constraints.advanced.push({ focusMode: 'continuous' });
+                 } else if (capabilities.focusMode.includes('auto')) {
+                     constraints.advanced.push({ focusMode: 'auto' });
+                 }
+             }
+
+             // Aplikuj constraints ak nejaké máme
+             if (constraints.advanced.length > 0) {
+                 await videoTrack.applyConstraints(constraints);
+             }
           }
         } catch (e) {
-            console.log("Zoom not supported", e);
+            console.warn("Advanced camera features not supported:", e);
         }
 
       } catch (err: any) {
-        console.error(err);
-        setError("Kamera nie je k dispozícii alebo nemáte povolenie.");
+        console.error("Scanner init error:", err);
+        setError("Kamera nie je k dispozícii alebo nemáte povolenie. Skúste obnoviť stránku.");
       }
     };
 
-    const timer = setTimeout(startScanner, 100);
+    // Malé oneskorenie pre istotu, že DOM je ready
+    const timer = setTimeout(startScanner, 300);
 
     return () => {
       clearTimeout(timer);
       if (html5QrCode && html5QrCode.isScanning) {
-        html5QrCode.stop().catch(() => {});
+        html5QrCode.stop().catch((e: any) => console.log("Stop failed", e));
       }
     };
   }, []); 
@@ -163,8 +177,8 @@ export const BarcodeScanner: React.FC<Props> = ({ onScan, onClose, isAnalyzing }
               <div className="absolute inset-x-4 top-1/2 h-[2px] bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)] z-10 animate-scan-laser"></div>
             </div>
             
-            <p className="mt-8 text-white/80 text-xs font-black uppercase tracking-widest bg-black/60 px-4 py-2 rounded-full backdrop-blur-sm">
-                  Držte kameru ďalej (15-30cm)
+            <p className="mt-8 text-white/80 text-xs font-black uppercase tracking-widest bg-black/60 px-4 py-2 rounded-full backdrop-blur-sm shadow-lg">
+                  Skenujte čiarový kód
             </p>
 
           </div>
