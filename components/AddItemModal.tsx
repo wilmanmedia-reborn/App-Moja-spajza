@@ -158,13 +158,6 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
             expiryDate: nearestExpiry
         });
     } else {
-        // Pri pridávaní novej položky vytvárame item, batch sa vytvorí v App.tsx
-        // Alebo, ak chceme byť konzistentní, App.tsx by mala dostať rovno batch.
-        // Pre zjednodušenie (lebo App.tsx handleAddItem očakáva Omit<FoodItem...>)
-        // pošleme základné dáta a App.tsx vytvorí prvý batch.
-        
-        // POZOR: App.tsx handleAddItem používa expiryDate z payloadu pre prvý batch.
-        
         const payload = {
             name: formData.name,
             category: formData.category,
@@ -215,7 +208,11 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
                   />
                   {!editingItem && (
                     <button type="button" onClick={() => setShowScanner(true)} className="w-[56px] h-[56px] shrink-0 flex items-center justify-center bg-emerald-600 text-white rounded-2xl shadow-lg active:scale-90 transition-transform">
-                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 4h18M3 20h18M5 8h2v8H5V8zm4 0h1v8H9V8zm3 0h2v8h-2V8zm4 0h1v8h-1V8zm3 0h2v8h-2V8z" /></svg>
+                      {/* Ikona Fotoaparátu */}
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
                     </button>
                   )}
                 </div>
@@ -252,7 +249,7 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
                 </div>
               </div>
 
-              {/* Množstvá a jednotky - Fix centrovania a vizuálu */}
+              {/* Množstvá a jednotky */}
               <div className="p-6 bg-slate-50 dark:bg-slate-800/40 rounded-3xl space-y-6 border border-slate-100 dark:border-slate-800">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
@@ -305,7 +302,7 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
                 </div>
               </div>
 
-              {/* Batches Management Section (Only visible when editing) */}
+              {/* Batches Management Section */}
               {editingItem && (
                 <div className="space-y-3">
                     <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Jednotlivé šarže a expirácie</label>
@@ -336,15 +333,17 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
                 </div>
               )}
 
-              {/* Expirácia a Vlastná výroba v jednom riadku - Fix layoutu pre mobile */}
+              {/* Expirácia a Vlastná výroba */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-stretch">
                 {!editingItem && (
                     <div className="space-y-2">
-                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Spotrebujte do</label>
+                    {/* Odstránené ml-1 a pridané text-center pre label */}
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Spotrebujte do</label>
+                    {/* Odstránené flex items-center justify-center pre lepší layout inputu */}
                     <input 
                         type="date" value={formData.expiryDate}
                         onChange={e => setFormData({...formData, expiryDate: e.target.value})}
-                        className="w-full h-[60px] px-4 py-3 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white rounded-2xl outline-none font-bold text-[13px] border-none flex items-center justify-center text-center"
+                        className="w-full h-[60px] px-4 py-3 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white rounded-2xl outline-none font-bold text-[13px] border-none text-center"
                     />
                     </div>
                 )}
@@ -373,7 +372,7 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
             </div>
           </div>
 
-          {/* Footer - Fixed at bottom */}
+          {/* Footer */}
           <div className="px-6 py-6 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 shrink-0 shadow-[0_-10px_20px_rgba(0,0,0,0.05)]">
             <button 
               onClick={handleSubmit}
@@ -402,11 +401,9 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
       )}
       
       <style>{`
-        /* Fix pre centrovanie textu v selecte */
         select {
           text-align-last: center;
         }
-        /* Custom scrollbar pre čistý vzhľad */
         .no-scrollbar::-webkit-scrollbar {
           display: none;
         }
