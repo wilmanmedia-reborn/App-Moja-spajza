@@ -336,14 +336,13 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
               {/* Expirácia a Vlastná výroba */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-stretch">
                 {!editingItem && (
-                    <div className="space-y-2">
-                    {/* Odstránené ml-1 a pridané text-center pre label */}
+                    <div className="space-y-2 min-w-0">
                     <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Spotrebujte do</label>
-                    {/* Odstránené flex items-center justify-center pre lepší layout inputu */}
                     <input 
                         type="date" value={formData.expiryDate}
                         onChange={e => setFormData({...formData, expiryDate: e.target.value})}
-                        className="w-full h-[60px] px-4 py-3 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white rounded-2xl outline-none font-bold text-[13px] border-none text-center"
+                        className="block w-full h-[60px] px-4 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white rounded-2xl outline-none font-bold text-[13px] border-none text-center appearance-none"
+                        style={{ WebkitAppearance: 'none' }}
                     />
                     </div>
                 )}

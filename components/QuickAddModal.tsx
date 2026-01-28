@@ -40,7 +40,8 @@ export const QuickAddModal: React.FC<Props> = ({ isOpen, onClose, onConfirm, ite
               type="date" 
               value={expiryDate}
               onChange={e => setExpiryDate(e.target.value)}
-              className="w-full h-[60px] px-4 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white rounded-2xl outline-none font-bold text-[15px] border-2 border-transparent focus:border-emerald-500/30 text-center shadow-sm"
+              className="block w-full h-[60px] px-4 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white rounded-2xl outline-none font-bold text-[15px] border-2 border-transparent focus:border-emerald-500/30 text-center shadow-sm appearance-none"
+              style={{ WebkitAppearance: 'none' }}
               autoFocus
             />
           </div>
