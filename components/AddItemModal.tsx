@@ -98,13 +98,23 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
         const foundCat = categories.find(c => c.name.toLowerCase() === result.categoryName.toLowerCase());
         catId = foundCat ? foundCat.id : onAddCategory(result.categoryName);
       }
+      
+      // Bezpečné parsovanie jednotky (default G)
+      let parsedUnit = Unit.G;
+      if (result.unit) {
+          const rawU = result.unit.toLowerCase();
+          if (Object.values(Unit).includes(rawU)) {
+              parsedUnit = rawU as Unit;
+          }
+      }
 
       setFormData(prev => ({
         ...prev,
         name: result.name,
         quantityPerPack: result.quantity || prev.quantityPerPack,
-        unit: (result.unit?.toLowerCase() as Unit) || prev.unit,
-        category: catId
+        unit: parsedUnit,
+        category: catId,
+        expiryDate: result.expiryDate || prev.expiryDate // Aplikujeme odhadnutý dátum
       }));
     } else {
       alert(`Kód ${codeUsed} sa nepodarilo rozpoznať. Zadajte ho ručne.`);

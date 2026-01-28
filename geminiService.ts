@@ -17,6 +17,24 @@ function safeJsonParse(text: string | undefined) {
   }
 }
 
+// Pomocná funkcia na extrakciu čísla a jednotky z textu (fallback)
+function parseQuantityFromText(text: string): { value: number, unit: string } | null {
+  if (!text) return null;
+  // Hľadá vzory ako: 310g, 310 g, 0.5 l, 1kg, 5x10g
+  const regex = /(\d+[.,]?\d*)\s*(g|ml|kg|l|ks|kusov|pcs)/i;
+  const match = text.match(regex);
+  if (match) {
+    let val = parseFloat(match[1].replace(',', '.'));
+    let unit = match[2].toLowerCase();
+    
+    // Normalizácia
+    if (unit === 'kusov' || unit === 'pcs') unit = 'ks';
+    
+    return { value: val, unit };
+  }
+  return null;
+}
+
 function mapCategoryFromTags(tags: string[] = []): string | null {
   const t = tags.join(' ').toLowerCase();
   if (t.includes('pastas') || t.includes('rice') || t.includes('noodles')) return 'Cestoviny & Ryža';
@@ -45,7 +63,7 @@ async function fetchFromOpenFoodFacts(barcode: string) {
         p.product_name_en
       ].filter(Boolean);
 
-      // Zbierame "všeobecné názvy" (napr. "Kečup jemný", "Horčica plnotučná")
+      // Zbierame "všeobecné názvy"
       const possibleGenerics = [
         p.generic_name_sk,
         p.generic_name_cs,
@@ -54,15 +72,14 @@ async function fetchFromOpenFoodFacts(barcode: string) {
 
       const name = possibleNames[0] || "";
       const generic = possibleGenerics[0] || "";
-      const brand = p.brands ? p.brands.split(',')[0] : "";
+      const brand = p.brands ? p.brands.split(',')[0].trim() : "";
       
-      // Surové dáta pre AI
       return {
         rawName: name,
         rawGeneric: generic,
         brand: brand,
-        quantityStr: p.quantity || "", // Napr "520 g"
-        netWeight: p.net_weight_value, // Napr 520
+        quantityStr: p.quantity || "", // Napr "310 g"
+        netWeight: p.net_weight_value, // Napr 310
         netUnit: p.net_weight_unit,    // Napr "g"
         categoriesTags: p.categories_tags || []
       };
@@ -77,30 +94,30 @@ export async function parseSmartEntry(input: string, existingCategories: Categor
   const categoriesList = existingCategories.map(c => c.name).join(", ");
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-  // 1. SCENÁR: Máme čiarový kód -> Získame dáta z OFF -> Pošleme AI na "upratanie"
+  // 1. SCENÁR: EAN Kód
   if (isBarcode) {
     const fastData = await fetchFromOpenFoodFacts(barcode);
     
     if (fastData) {
       try {
-        // Vytvoríme prompt pre AI, aby skombinovala dáta do pekného názvu
-        // Príklad: Brand="OTMA", Name="Gurmán", Generic="Kečup" -> "OTMA Gurmán Kečup"
         const prompt = `
-          Mám produkt z databázy s týmito surovými dátami:
-          - Značka: "${fastData.brand}"
-          - Názov: "${fastData.rawName}"
-          - Popis/Druh: "${fastData.rawGeneric}"
-          - Množstvo text: "${fastData.quantityStr}"
+          Mám produkt z databázy (OFF) s týmito surovými dátami:
+          - Značka (brands): "${fastData.brand}"
+          - Názov (product_name): "${fastData.rawName}"
+          - Popis/Druh (generic_name): "${fastData.rawGeneric}"
+          - Množstvo text (quantity): "${fastData.quantityStr}"
           - Kategórie tagy: "${fastData.categoriesTags.slice(0, 5).join(', ')}"
 
-          Tvojou úlohou je:
-          1. Vytvoriť PRESNÝ a PEKNÝ názov produktu v slovenčine. Spoj Značku + Názov + Druh tak, aby to dávalo zmysel. 
-             (Príklad: ak je Značka="OTMA" a Názov="Gurmán", výsledok musí byť "OTMA Gurmán Kečup").
-             Ak názov už obsahuje značku, neopakuj ju.
-          2. Extrahovať presnú váhu/objem (číslo) a jednotku (g, ml, kg, l, ks).
-          3. Priradiť kategóriu zo zoznamu: [${categoriesList}].
+          Tvojou úlohou je vrátiť JSON objekt s týmito kľúčmi:
+          1. "name": Zlož PRESNÝ a ÚPLNÝ názov v slovenčine v tvare: "Značka Názov Druh". 
+             (Príklad: Ak Značka="OTMA" a Názov="Gurmán", výsledok MUSÍ byť "OTMA Gurmán Kečup").
+             Názov musí obsahovať značku (ak je známa) a typ produktu.
+          2. "quantity": Číslo predstavujúce hmotnosť/objem jedného balenia.
+          3. "unit": Jednotka (g, ml, kg, l, ks).
+          4. "categoryName": Vyber najvhodnejšiu kategóriu zo zoznamu: [${categoriesList}].
+          5. "shelfLifeDays": Odhadni bežnú trvanlivosť tohto typu produktu v dňoch (napr. kečup=365, mlieko=7).
 
-          Odpovedz iba JSON objektom.
+          Dôležité: Ak v dátach nevidíš hmotnosť, skús ju nájsť v texte (napr "310g").
         `;
 
         const response = await ai.models.generateContent({
@@ -114,52 +131,88 @@ export async function parseSmartEntry(input: string, existingCategories: Categor
                 name: { type: Type.STRING },
                 quantity: { type: Type.NUMBER },
                 unit: { type: Type.STRING },
-                categoryName: { type: Type.STRING }
+                categoryName: { type: Type.STRING },
+                shelfLifeDays: { type: Type.NUMBER }
               },
               required: ["name", "quantity", "unit", "categoryName"]
             }
           }
         });
 
-        return safeJsonParse(response.text);
+        const result = safeJsonParse(response.text);
+        
+        // Post-processing: Ak AI vráti 0 quantity, skúsime regex na quantityStr
+        if (result && (!result.quantity || result.quantity === 0)) {
+           const manualParse = parseQuantityFromText(fastData.quantityStr);
+           if (manualParse) {
+             result.quantity = manualParse.value;
+             result.unit = manualParse.unit;
+           } else if (fastData.netWeight) {
+             result.quantity = parseFloat(fastData.netWeight);
+             result.unit = fastData.netUnit || 'g';
+           }
+        }
+
+        // Dopočítanie expirácie
+        if (result && result.shelfLifeDays) {
+            const date = new Date();
+            date.setDate(date.getDate() + result.shelfLifeDays);
+            result.expiryDate = date.toISOString().split('T')[0];
+        }
+
+        return result;
 
       } catch (aiError) {
-        // Fallback ak AI zlyhá - použijeme aspoň to čo máme z OFF
-        console.error("AI cleanup failed, using raw OFF data", aiError);
+        console.error("AI cleanup failed, using robust fallback", aiError);
         
-        // Jednoduchá logika pre názov
-        let fullName = fastData.rawName;
+        // ROBUST FALLBACK - manuálne skladanie
+        let fullName = fastData.rawName || "Neznámy produkt";
+        
+        // 1. Pridaj generic ak chýba (napr "Gurmán" -> "Gurmán Kečup")
         if (fastData.rawGeneric && !fullName.toLowerCase().includes(fastData.rawGeneric.toLowerCase())) {
            fullName += ` ${fastData.rawGeneric}`;
         }
+        // 2. Pridaj značku na začiatok ak chýba (napr "Gurmán..." -> "OTMA Gurmán...")
         if (fastData.brand && !fullName.toLowerCase().includes(fastData.brand.toLowerCase())) {
            fullName = `${fastData.brand} ${fullName}`;
+        }
+
+        // 3. Extrahuj quantity
+        let q = parseFloat(fastData.netWeight) || 0;
+        let u = fastData.netUnit || 'g';
+        
+        // Ak nemáme netWeight, skúsime parsovať string
+        if (q === 0 && fastData.quantityStr) {
+            const parsed = parseQuantityFromText(fastData.quantityStr);
+            if (parsed) {
+                q = parsed.value;
+                u = parsed.unit;
+            }
         }
 
         const mappedCat = mapCategoryFromTags(fastData.categoriesTags);
         
         return { 
           name: fullName, 
-          quantity: parseFloat(fastData.netWeight) || 0,
-          unit: fastData.netUnit || 'g',
+          quantity: q,
+          unit: u,
           categoryName: mappedCat || "" 
         };
       }
     }
   }
   
-  // 2. SCENÁR: Čiarový kód sa nenašiel v OFF alebo ide o full-text vyhľadávanie
-  // Použijeme AI s Google Search groundingom
+  // 2. SCENÁR: Vyhľadávanie textu alebo neznámy EAN
   try {
     const searchPrompt = isBarcode 
-      ? `Nájdi produkt podľa EAN kódu "${barcode}". Zisti jeho presný názov (Značka + Názov produktu), hmotnosť/objem a zaraď ho do kategórie z [${categoriesList}]. Vráť JSON.`
-      : `Identifikuj produkt: "${input}". Vyber kategóriu z [${categoriesList}]. Vráť JSON.`;
+      ? `Nájdi produkt s EAN kódom "${barcode}". Vráť JSON: {name (Značka+Názov), quantity, unit, categoryName (z [${categoriesList}]), shelfLifeDays (odhad dní trvanlivosti)}.`
+      : `Identifikuj produkt: "${input}". Vráť JSON: {name, quantity, unit, categoryName (z [${categoriesList}]), shelfLifeDays}.`;
 
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: searchPrompt,
       config: {
-        tools: isBarcode ? [{ googleSearch: {} }] : [], // Search použijeme len pre EAN
+        tools: isBarcode ? [{ googleSearch: {} }] : [],
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -167,14 +220,22 @@ export async function parseSmartEntry(input: string, existingCategories: Categor
             name: { type: Type.STRING },
             quantity: { type: Type.NUMBER },
             unit: { type: Type.STRING },
-            categoryName: { type: Type.STRING }
+            categoryName: { type: Type.STRING },
+            shelfLifeDays: { type: Type.NUMBER }
           },
           required: ["name", "quantity", "unit", "categoryName"]
         }
       }
     });
     
-    return safeJsonParse(response.text);
+    const result = safeJsonParse(response.text);
+    if (result && result.shelfLifeDays) {
+        const date = new Date();
+        date.setDate(date.getDate() + result.shelfLifeDays);
+        result.expiryDate = date.toISOString().split('T')[0];
+    }
+    return result;
+
   } catch (error) {
     console.error("AI Search Error:", error);
     return null;
