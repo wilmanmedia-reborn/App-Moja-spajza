@@ -30,22 +30,33 @@ export const BarcodeScanner: React.FC<Props> = ({ onScan, onClose, isAnalyzing }
         html5QrCode = new Html5Qrcode(containerId);
         scannerRef.current = html5QrCode;
 
+        // Vylepšené rozmery skenovacieho okna (širšie pre EAN kódy)
+        const qrboxFunction = (viewWidth: number, viewHeight: number) => {
+            const minEdge = Math.min(viewWidth, viewHeight);
+            const width = Math.floor(minEdge * 0.8); // 80% šírky
+            const height = Math.floor(width * 0.5);  // Obdĺžnik (nie štvorec)
+            return { width, height };
+        };
+
         const config = { 
-          fps: 25,
-          // Nastavenie obdĺžnikového skenera (širší pre čiarové kódy)
-          qrbox: (viewWidth: number, viewHeight: number) => {
-              const width = Math.floor(viewWidth * 0.85); // 85% šírky displeja
-              const height = Math.floor(width * 0.55);   // Výška cca polovičná oproti šírke
-              return { width, height };
-          },
+          fps: 10, // Znížené FPS pre lepší autofocus na starších zariadeniach
+          qrbox: qrboxFunction,
           aspectRatio: 1.0,
           experimentalFeatures: {
             useBarCodeDetectorIfSupported: true
           }
         };
 
+        // Konfigurácia kamery pre lepšiu kvalitu a zoom
+        const cameraConfig = { 
+            facingMode: "environment",
+            focusMode: "continuous", // Dôležité pre vzdialenosť
+            width: { min: 1024, ideal: 1920, max: 3840 }, // Preferovať vysoké rozlíšenie
+            height: { min: 576, ideal: 1080, max: 2160 }
+        };
+
         await html5QrCode.start(
-          { facingMode: "environment" }, 
+          cameraConfig, 
           config, 
           (text: string) => {
             if (!isAnalyzing) {
@@ -56,16 +67,44 @@ export const BarcodeScanner: React.FC<Props> = ({ onScan, onClose, isAnalyzing }
           () => {} 
         );
         
+        // --- APLIKOVANIE ZOOMU (KĽÚČOVÉ PRE SKENOVANIE Z DIAĽKY) ---
         try {
           const track = html5QrCode.getRunningTrackCapabilities();
+          
+          // Detekcia blesku
           if (track && track.torch) setHasTorch(true);
-        } catch (e) {}
+
+          // Aplikovanie Zoomu ak je dostupný
+          // Väčšina telefónov má wide lens, zoom 1.5x - 2.0x pomáha čítať čiarové kódy
+          if (track && track.zoom) {
+              const videoTrack = html5QrCode.videoElement?.srcObject?.getVideoTracks()[0];
+              if (videoTrack) {
+                  const capabilities = videoTrack.getCapabilities();
+                  if (capabilities.zoom) {
+                      const currentZoom = track.zoom;
+                      const maxZoom = capabilities.zoom.max || 3;
+                      // Nastavíme zoom na cca 2.0 alebo polovicu maxima, podľa toho čo je menšie
+                      const targetZoom = Math.min(2.0, maxZoom); 
+                      
+                      if (targetZoom > currentZoom) {
+                          await videoTrack.applyConstraints({
+                              advanced: [{ zoom: targetZoom }]
+                          });
+                      }
+                  }
+              }
+          }
+        } catch (e) {
+            console.log("Zoom not supported", e);
+        }
+
       } catch (err: any) {
-        setError("Kamera nie je k dispozícii.");
+        console.error(err);
+        setError("Kamera nie je k dispozícii alebo nemáte povolenie.");
       }
     };
 
-    const timer = setTimeout(startScanner, 300);
+    const timer = setTimeout(startScanner, 100);
 
     return () => {
       clearTimeout(timer);
@@ -111,11 +150,8 @@ export const BarcodeScanner: React.FC<Props> = ({ onScan, onClose, isAnalyzing }
         {!isAnalyzing && (
           <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center">
             
-            {/* Dark overlay with transparent center (simulated via borders or clip-path is tricky in plain HTML/Tailwind without canvas, using simple overlay technique) */}
-            {/* Note: html5-qrcode provides its own shade, but we add custom UI on top */}
-
-            {/* Rectangular Scan Frame */}
-            <div className="relative w-[85vw] h-[45vw] max-w-[400px] max-h-[220px]">
+            {/* Rectangular Scan Frame - Wider for Barcodes */}
+            <div className="relative w-[80vw] h-[40vw] max-w-[500px] max-h-[250px]">
               
               {/* Green corners */}
               <div className="absolute top-0 left-0 w-8 h-8 border-t-[4px] border-l-[4px] border-emerald-500 rounded-tl-lg z-20"></div>
@@ -125,14 +161,11 @@ export const BarcodeScanner: React.FC<Props> = ({ onScan, onClose, isAnalyzing }
 
               {/* Red Laser Line */}
               <div className="absolute inset-x-4 top-1/2 h-[2px] bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)] z-10 animate-scan-laser"></div>
-              
-              {/* Text instruction */}
-              <div className="absolute -bottom-12 inset-x-0 text-center">
-                <p className="text-white text-xs font-black uppercase tracking-widest bg-black/40 inline-block px-4 py-2 rounded-full backdrop-blur-sm">
-                  Naskenujte čiarový kód
-                </p>
-              </div>
             </div>
+            
+            <p className="mt-8 text-white/80 text-xs font-black uppercase tracking-widest bg-black/60 px-4 py-2 rounded-full backdrop-blur-sm">
+                  Držte kameru ďalej (15-30cm)
+            </p>
 
           </div>
         )}
@@ -140,8 +173,8 @@ export const BarcodeScanner: React.FC<Props> = ({ onScan, onClose, isAnalyzing }
         {isAnalyzing && (
           <div className="absolute inset-0 bg-slate-900/95 backdrop-blur-xl flex flex-col items-center justify-center text-center p-8 z-50">
             <div className="w-16 h-16 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin mb-6"></div>
-            <p className="text-white font-black text-lg uppercase tracking-tighter">Identifikujem produkt...</p>
-            <p className="text-slate-400 text-xs mt-2 max-w-[200px]">Hľadám v databáze OpenFoodFacts a Google...</p>
+            <p className="text-white font-black text-lg uppercase tracking-tighter">Spracovávam údaje...</p>
+            <p className="text-slate-400 text-xs mt-2 max-w-[200px]">Získavam značku, hmotnosť a názov...</p>
           </div>
         )}
 
