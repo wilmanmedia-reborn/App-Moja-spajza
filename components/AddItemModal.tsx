@@ -19,6 +19,7 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
   const [showScanner, setShowScanner] = useState(false);
   const [isAiProcessing, setIsAiProcessing] = useState(false);
   const [scannedCode, setScannedCode] = useState<string | null>(null);
+  const [highlightError, setHighlightError] = useState(false); // State pre vizuálnu chybu
   
   const [formData, setFormData] = useState({
     name: '',
@@ -82,6 +83,7 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
       });
       setTempBatches([]);
     }
+    setHighlightError(false); // Reset error on open/change
   }, [editingItem, categories, locations, isOpen]);
 
   if (!isOpen) return null;
@@ -127,6 +129,7 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
 
     // --- VALIDÁCIA: Obsah balenia musí byť vyplnený, ak nejde o kusy ---
     if (formData.unit !== Unit.KS && (!formData.quantityPerPack || formData.quantityPerPack <= 0)) {
+        setHighlightError(true); // Zapneme červený outline
         alert("Pre zvolenú jednotku (" + formData.unit + ") musíte zadať obsah jedného balenia (napr. koľko gramov má 1 kus).\n\nAk chcete evidovať len počet kusov, zmeňte Jednotku na 'ks'.");
         return;
     }
@@ -316,27 +319,33 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
               <div className="p-6 bg-slate-50 dark:bg-slate-800/40 rounded-3xl space-y-6 border border-slate-100 dark:border-slate-800">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest text-center">Jednotka</label>
+                    <label className={`block text-[8px] font-black uppercase tracking-widest text-center ${highlightError ? 'text-red-500' : 'text-slate-400'}`}>Jednotka</label>
                     <select 
                       value={formData.unit} 
-                      onChange={e => setFormData({...formData, unit: e.target.value as Unit})} 
-                      className="w-full px-2 py-3.5 bg-white dark:bg-slate-900 text-slate-900 dark:text-white rounded-xl font-black text-[15px] border border-slate-200 dark:border-slate-700 outline-none text-center appearance-none h-[60px]"
+                      onChange={e => {
+                          setFormData({...formData, unit: e.target.value as Unit});
+                          setHighlightError(false); // Zrušíme error pri zmene
+                      }} 
+                      className={`w-full px-2 py-3.5 bg-white dark:bg-slate-900 text-slate-900 dark:text-white rounded-xl font-black text-[15px] border outline-none text-center appearance-none h-[60px] transition-all ${highlightError ? 'border-red-500 dark:border-red-500 ring-4 ring-red-500/20 z-10' : 'border-slate-200 dark:border-slate-700'}`}
                       style={{ textAlignLast: 'center', textAlign: 'center' }}
                     >
                       {Object.values(Unit).map(u => <option key={u} value={u}>{u}</option>)}
                     </select>
                   </div>
                   <div className="space-y-1.5">
-                    <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest text-center">Obsah 1ks</label>
+                    <label className={`block text-[8px] font-black uppercase tracking-widest text-center ${highlightError ? 'text-red-500' : 'text-slate-400'}`}>Obsah 1ks</label>
                     <div className="relative flex items-center">
                       <input 
                         required={formData.unit !== Unit.KS} 
                         type="number" step="any" disabled={formData.unit === Unit.KS} 
                         value={formData.quantityPerPack || ''} 
-                        onChange={e => setFormData({...formData, quantityPerPack: Number(e.target.value)})} 
+                        onChange={e => {
+                            setFormData({...formData, quantityPerPack: Number(e.target.value)});
+                            setHighlightError(false); // Zrušíme error pri písaní
+                        }} 
                         onFocus={(e) => e.target.select()}
                         placeholder={formData.unit !== Unit.KS ? "0" : ""}
-                        className="w-full px-4 py-3.5 bg-white dark:bg-slate-900 text-slate-900 dark:text-white rounded-xl font-black text-center text-[15px] border border-slate-200 dark:border-slate-700 outline-none focus:ring-2 focus:ring-emerald-500/20 h-[60px]" 
+                        className={`w-full px-4 py-3.5 bg-white dark:bg-slate-900 text-slate-900 dark:text-white rounded-xl font-black text-center text-[15px] border outline-none h-[60px] transition-all ${highlightError ? 'border-red-500 dark:border-red-500 ring-4 ring-red-500/20 z-10' : 'border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-emerald-500/20'}`} 
                       />
                       {formData.unit !== Unit.KS && (
                         <span className="absolute right-4 text-[11px] font-black text-slate-400 pointer-events-none lowercase">
