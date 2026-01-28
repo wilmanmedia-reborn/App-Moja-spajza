@@ -215,7 +215,7 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
                   />
                   {!editingItem && (
                     <button type="button" onClick={() => setShowScanner(true)} className="w-[56px] h-[56px] shrink-0 flex items-center justify-center bg-emerald-600 text-white rounded-2xl shadow-lg active:scale-90 transition-transform">
-                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M12 4v1m-3.322 3.322l-.707.707M5 12h1m3.322 3.322l-.707.707M12 19v1m3.322-3.322l.707.707M19 12h1m-3.322-3.322l.707-.707M12 12a4 4 0 110-8 4 4 0 010 8z" /></svg>
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 4h18M3 20h18M5 8h2v8H5V8zm4 0h1v8H9V8zm3 0h2v8h-2V8zm4 0h1v8h-1V8zm3 0h2v8h-2V8z" /></svg>
                     </button>
                   )}
                 </div>
@@ -336,8 +336,8 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
                 </div>
               )}
 
-              {/* Expirácia a Vlastná výroba v jednom riadku - Fix layoutu */}
-              <div className="grid grid-cols-2 gap-4 items-stretch">
+              {/* Expirácia a Vlastná výroba v jednom riadku - Fix layoutu pre mobile */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-stretch">
                 {!editingItem && (
                     <div className="space-y-2">
                     <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Spotrebujte do</label>
@@ -349,7 +349,7 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
                     </div>
                 )}
                 
-                <div className={`space-y-2 ${editingItem ? 'col-span-2' : ''}`}>
+                <div className={`space-y-2 ${editingItem ? 'sm:col-span-2' : ''}`}>
                   <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Pôvod produktu</label>
                   <div className="flex h-[60px] bg-slate-100 dark:bg-slate-800 rounded-2xl overflow-hidden p-1">
                      <button
