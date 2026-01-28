@@ -179,6 +179,64 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
       setTempBatches(prev => prev.filter(b => b.id !== batchId));
   };
 
+  // Helper pre Stepper Input
+  const StepperInput = ({ 
+    value, 
+    onChange, 
+    min = 0, 
+    disabled = false,
+    label,
+    className = ""
+  }: { 
+    value: number, 
+    onChange: (val: number) => void, 
+    min?: number,
+    disabled?: boolean,
+    label: string,
+    className?: string
+  }) => (
+    <div className={`space-y-1.5 ${className}`}>
+        <label className={`block text-[8px] font-black uppercase tracking-widest text-center ${disabled ? 'text-emerald-600' : 'text-slate-400'}`}>
+            {label}
+        </label>
+        
+        {disabled ? (
+            <div className="w-full h-[60px] flex items-center justify-center bg-emerald-50 dark:bg-emerald-950/30 text-emerald-900 dark:text-emerald-100 rounded-2xl font-black text-[15px] border border-emerald-200 dark:border-emerald-800 opacity-80">
+                {value}
+            </div>
+        ) : (
+            <div className="flex items-center h-[60px] bg-slate-100 dark:bg-slate-800 rounded-2xl p-1.5 gap-2">
+                <button 
+                    type="button"
+                    onClick={() => onChange(Math.max(min, value - 1))}
+                    className="w-12 h-full flex items-center justify-center bg-white dark:bg-slate-700 text-slate-900 dark:text-white rounded-xl shadow-sm text-lg font-black active:scale-95 transition-transform"
+                >
+                    -
+                </button>
+                <input 
+                    type="number" 
+                    value={value.toString()} 
+                    min={min}
+                    onChange={(e) => {
+                        const val = e.target.value;
+                        // Ak je prázdne, nastav 0, inak parsuj číslo
+                        onChange(val === '' ? 0 : parseInt(val) || 0);
+                    }}
+                    onFocus={(e) => e.target.select()} // TOTO OPRAVUJE "05" PROBLÉM - označí všetko pri kliknutí
+                    className="flex-1 w-full bg-transparent text-center font-black text-xl text-slate-900 dark:text-white outline-none border-none p-0 appearance-none m-0"
+                />
+                <button 
+                    type="button"
+                    onClick={() => onChange(value + 1)}
+                    className="w-12 h-full flex items-center justify-center bg-emerald-500 text-white rounded-xl shadow-sm shadow-emerald-500/30 text-lg font-black active:scale-95 transition-transform"
+                >
+                    +
+                </button>
+            </div>
+        )}
+    </div>
+  );
+
   return (
     <>
       <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-950/80 backdrop-blur-md px-0 sm:px-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
@@ -257,7 +315,7 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
                     <select 
                       value={formData.unit} 
                       onChange={e => setFormData({...formData, unit: e.target.value as Unit})} 
-                      className="w-full px-2 py-3.5 bg-white dark:bg-slate-900 text-slate-900 dark:text-white rounded-xl font-black text-[15px] border border-slate-200 dark:border-slate-700 outline-none text-center appearance-none"
+                      className="w-full px-2 py-3.5 bg-white dark:bg-slate-900 text-slate-900 dark:text-white rounded-xl font-black text-[15px] border border-slate-200 dark:border-slate-700 outline-none text-center appearance-none h-[60px]"
                       style={{ textAlignLast: 'center', textAlign: 'center' }}
                     >
                       {Object.values(Unit).map(u => <option key={u} value={u}>{u}</option>)}
@@ -271,7 +329,8 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
                         type="number" step="any" disabled={formData.unit === Unit.KS} 
                         value={formData.quantityPerPack || ''} 
                         onChange={e => setFormData({...formData, quantityPerPack: Number(e.target.value)})} 
-                        className="w-full px-4 py-3.5 bg-white dark:bg-slate-900 text-slate-900 dark:text-white rounded-xl font-black text-center text-[15px] border border-slate-200 dark:border-slate-700 outline-none focus:ring-2 focus:ring-emerald-500/20" 
+                        onFocus={(e) => e.target.select()}
+                        className="w-full px-4 py-3.5 bg-white dark:bg-slate-900 text-slate-900 dark:text-white rounded-xl font-black text-center text-[15px] border border-slate-200 dark:border-slate-700 outline-none focus:ring-2 focus:ring-emerald-500/20 h-[60px]" 
                       />
                       {formData.unit !== Unit.KS && (
                         <span className="absolute right-4 text-[11px] font-black text-slate-400 pointer-events-none lowercase">
@@ -283,22 +342,24 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
                 </div>
                 
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="block text-[8px] font-black text-emerald-600 uppercase tracking-widest text-center">
-                      {editingItem ? 'Mám celkom (auto)' : 'Mám (ks)'}
-                    </label>
-                    {editingItem ? (
-                      <div className="w-full px-4 py-3.5 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-900 dark:text-emerald-100 rounded-xl font-black text-center text-[15px] border border-emerald-200 dark:border-emerald-800 opacity-60">
-                        {tempBatches.reduce((acc, b) => acc + b.quantity, 0)}
-                      </div>
-                    ) : (
-                      <input required type="number" value={formData.currentPacks} min="0" onChange={e => setFormData({...formData, currentPacks: Number(e.target.value)})} className="w-full px-4 py-3.5 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-900 dark:text-emerald-100 rounded-xl font-black text-center text-[15px] outline-none border border-emerald-200 dark:border-emerald-800" />
-                    )}
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest text-center">Cieľ (ks)</label>
-                    <input required type="number" value={formData.targetPacks} min="1" onChange={e => setFormData({...formData, targetPacks: Number(e.target.value)})} className="w-full px-4 py-3.5 bg-white dark:bg-slate-900 dark:text-white rounded-xl font-black text-center text-[15px] border border-slate-200 dark:border-slate-700 outline-none" />
-                  </div>
+                  
+                  {/* Stepper pre MÁM (Current Packs) */}
+                  <StepperInput 
+                    label={editingItem ? 'Mám celkom (auto)' : 'Mám (ks)'}
+                    value={editingItem ? tempBatches.reduce((acc, b) => acc + b.quantity, 0) : formData.currentPacks}
+                    onChange={(val) => !editingItem && setFormData({...formData, currentPacks: val})}
+                    disabled={!!editingItem} // Pri editácii sa počíta automaticky, nedá sa meniť priamo tu
+                    min={0}
+                  />
+
+                  {/* Stepper pre CIEĽ (Target Packs) */}
+                  <StepperInput 
+                    label="Cieľ (ks)"
+                    value={formData.targetPacks}
+                    onChange={(val) => setFormData({...formData, targetPacks: val})}
+                    min={1}
+                  />
+
                 </div>
               </div>
 
@@ -414,6 +475,15 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
         .no-scrollbar {
           -ms-overflow-style: none;
           scrollbar-width: none;
+        }
+        /* Hide number input spinners in Webkit/Moz */
+        input[type=number]::-webkit-inner-spin-button, 
+        input[type=number]::-webkit-outer-spin-button { 
+            -webkit-appearance: none; 
+            margin: 0; 
+        }
+        input[type=number] {
+            -moz-appearance: textfield;
         }
       `}</style>
     </>
