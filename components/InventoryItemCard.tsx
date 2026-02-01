@@ -35,9 +35,14 @@ export const InventoryItemCard: React.FC<Props> = ({ item, location, category, o
   const isUrgent = daysToExpiry !== null && daysToExpiry <= 7;
   const isExpiringSoon = daysToExpiry !== null && daysToExpiry <= 30;
 
+  // OPRAVA: Počet balení sa počíta ako počet šarží (fyzických kusov), ak nejde o jednotku "KS"
+  // Ak je jednotka KS, berieme priamo currentQuantity.
+  const currentPacks = item.unit === Unit.KS 
+    ? item.currentQuantity 
+    : (item.batches?.length || 0);
+
   const packSize = item.quantityPerPack || item.totalQuantity || 1;
-  const currentPacks = Math.ceil(item.currentQuantity / packSize);
-  const totalPacks = Math.ceil(item.totalQuantity / packSize);
+  const totalPacks = Math.ceil(item.totalQuantity / packSize); // Cieľový stav necháme orientačne prepočítaný
 
   const isSegmented = totalPacks > 0 && totalPacks <= 12;
 

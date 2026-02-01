@@ -241,6 +241,13 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
                     +
                 </button>
             </div>
+        ) : disabled && !editingItem ? (
+            // Custom UI pre New Item Mode - READ ONLY (Zablokované na 1 ks pre čistotu šarží)
+            <div className="flex items-center h-[60px] bg-slate-100 dark:bg-slate-800 rounded-2xl p-1 gap-1 border border-slate-200 dark:border-slate-700 opacity-60">
+                <div className="flex-1 flex items-center justify-center font-black text-[18px] text-slate-500 dark:text-slate-400">
+                    {value}
+                </div>
+            </div>
         ) : (
             // Default Stepper
             <div className="flex items-center h-[60px] bg-slate-100 dark:bg-slate-800 rounded-2xl p-1 gap-1">
@@ -400,7 +407,8 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
                     label={editingItem ? 'Mám celkom' : 'Mám (ks)'}
                     value={editingItem ? tempBatches.reduce((acc, b) => acc + (formData.unit === Unit.KS ? b.quantity : 1), 0) : formData.currentPacks}
                     onChange={(val) => !editingItem && setFormData({...formData, currentPacks: val})}
-                    disabled={!!editingItem} 
+                    // Ak pridávame nový item (!editingItem), nastavíme disabled=true pre zablokovanie tlačidiel
+                    disabled={true} 
                     min={0}
                   />
 

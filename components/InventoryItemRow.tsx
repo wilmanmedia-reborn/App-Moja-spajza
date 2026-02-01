@@ -18,8 +18,12 @@ export const InventoryItemRow: React.FC<Props> = ({ item, location, category, on
   const [isExpanded, setIsExpanded] = useState(false);
   
   const percentage = (item.currentQuantity / item.totalQuantity) * 100;
-  const packSize = item.quantityPerPack || item.totalQuantity || 1;
-  const currentPacks = Math.ceil(item.currentQuantity / packSize);
+  
+  // OPRAVA: Počet balení sa počíta ako počet šarží
+  const currentPacks = item.unit === Unit.KS 
+    ? item.currentQuantity 
+    : (item.batches?.length || 0);
+
   const isRunningLow = percentage > 0 && percentage <= 25;
   const isEmpty = item.currentQuantity <= 0;
   
