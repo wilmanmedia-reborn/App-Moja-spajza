@@ -17,10 +17,63 @@ function safeJsonParse(text: string | undefined) {
   }
 }
 
+// Pomocná funkcia na preklad tagov na "Typ produktu"
+function getProductTypeFromTags(tags: string[] = []): string | null {
+    const tagMap: Record<string, string> = {
+        'ketchup': 'Kečup',
+        'ketchups': 'Kečup',
+        'tomato-sauces': 'Paradajková omáčka',
+        'mustards': 'Horčica',
+        'mustard': 'Horčica',
+        'rice': 'Ryža',
+        'indica-rice': 'Ryža',
+        'japonica-rice': 'Ryža',
+        'pastas': 'Cestoviny',
+        'spaghetti': 'Špagety',
+        'macaroni': 'Kolienka',
+        'fusilli': 'Vrtuľky',
+        'penne': 'Penne',
+        'flours': 'Múka',
+        'wheat-flours': 'Múka pšeničná',
+        'sugars': 'Cukor',
+        'milks': 'Mlieko',
+        'cows-milk': 'Mlieko',
+        'vinegars': 'Ocot',
+        'oils': 'Olej',
+        'sunflower-oils': 'Olej slnečnicový',
+        'rapeseed-oils': 'Olej repkový',
+        'olive-oils': 'Olej olivový',
+        'waters': 'Voda',
+        'mineral-waters': 'Minerálka',
+        'fruit-juices': 'Džús',
+        'carbonated-drinks': 'Limonáda',
+        'legumes': 'Strukoviny',
+        'lentils': 'Šošovica',
+        'beans': 'Fazuľa',
+        'canned-vegetables': 'Konzerva',
+        'canned-fishes': 'Rybičky',
+        'tunas': 'Tuniak',
+        'chocolates': 'Čokoláda',
+        'biscuits': 'Sušienky',
+        'crisps': 'Chipsy',
+        'jams': 'Džem',
+        'honeys': 'Med',
+        'spices': 'Korenie',
+        'salts': 'Soľ'
+    };
+
+    for (const t of tags) {
+        // Tagy sú často v formáte "en:ketchups"
+        const cleanTag = t.split(':')[1] || t;
+        if (tagMap[cleanTag]) return tagMap[cleanTag];
+    }
+    return null;
+}
+
 // Vylepšený parser hmotnosti
 function parseQuantityFromText(text: string): { value: number, unit: string } | null {
   if (!text) return null;
-  // Hľadáme vzory ako: 500g, 500 g, 0.5l, 0,5 l, 100ml...
+  // Regex chytá: "500g", "500 g", "500ml", "0.5 l", "1kg", "520 g e"
   const regex = /(\d+[.,]?\d*)\s*(g|ml|kg|l|ks|kusov|pcs|gram|gramov|litrov)\b/i;
   const match = text.match(regex);
   
@@ -39,7 +92,6 @@ function parseQuantityFromText(text: string): { value: number, unit: string } | 
         unit = 'ks';
     }
     
-    // Sanity check - ak nájde 0, ignoruj
     if (val <= 0) return null;
 
     return { value: val, unit };
@@ -49,18 +101,20 @@ function parseQuantityFromText(text: string): { value: number, unit: string } | 
 
 async function fetchFromOpenFoodFacts(barcode: string) {
   try {
-    const response = await fetch(`https://world.openfoodfacts.org/api/v2/product/${barcode}.json?fields=product_name,product_name_sk,product_name_cs,product_name_en,quantity,brands,net_weight_value,net_weight_unit,categories_tags`);
+    // Pridávame generic_name a categories_hierarchy
+    const response = await fetch(`https://world.openfoodfacts.org/api/v2/product/${barcode}.json?fields=product_name,product_name_sk,product_name_cs,product_name_en,generic_name,generic_name_sk,generic_name_cs,quantity,brands,net_weight_value,net_weight_unit,categories_tags`);
     const data = await response.json();
     
     if (data.status === 1 && data.product) {
       const p = data.product;
       
-      // Hľadáme najlepší dostupný názov
       const name = p.product_name_sk || p.product_name_cs || p.product_name || p.product_name_en || "";
+      const generic = p.generic_name_sk || p.generic_name_cs || p.generic_name || "";
       const brand = p.brands ? p.brands.split(',')[0].trim() : "";
       
       return {
-        name: name,
+        rawName: name,
+        genericName: generic,
         brand: brand,
         quantityStr: p.quantity || "", 
         netWeight: p.net_weight_value,
@@ -78,43 +132,58 @@ export async function parseSmartEntry(input: string, existingCategories: Categor
   const categoriesList = existingCategories.map(c => c.name).join(", ");
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-  // 1. SCENÁR: EAN Kód - PRIORITY: DATABÁZA (AI len na kategóriu)
+  // 1. SCENÁR: EAN Kód - STRIKTNÝ FORMÁT NÁZVU
   if (isBarcode) {
     const fastData = await fetchFromOpenFoodFacts(barcode);
     
     if (fastData) {
-        // --- 1. Zostavenie názvu (Bez AI) ---
-        // Ak máme názov, použijeme ho. Ak máme aj značku a nie je v názve, pridáme ju.
-        let finalName = fastData.name;
+        // --- A. Zostavenie Názvu (Logika: Typ + Značka + Názov) ---
         
-        // Ak je názov prázdny, skúsime aspoň značku
-        if (!finalName && fastData.brand) {
-            finalName = fastData.brand;
-        } else if (!finalName) {
-            finalName = "Neznámy produkt";
-        } else {
-            // Formátovanie: Ak názov neobsahuje značku, môžeme ju skúsiť doplniť, 
-            // ale user chcel "Kečup", nie "Gurmán Kečup". 
-            // OFF väčšinou vracia celý názov "Gurmán Kečup jemný".
-            // Necháme to tak, ako to je v DB, je to najpresnejšie.
+        // 1. Zistíme typ produktu (Kečup, Ryža...)
+        let productType = getProductTypeFromTags(fastData.categories);
+        if (!productType && fastData.genericName) {
+            productType = fastData.genericName.split(' ')[0]; // Skúsime prvé slovo z generic name
         }
 
-        // --- 2. Získanie hmotnosti (Bez AI halucinácií) ---
+        // 2. Vyčistíme značku
+        let brand = fastData.brand;
+
+        // 3. Vyčistíme marketingový názov
+        let specificName = fastData.rawName;
+
+        // ODSTRÁNENIE DUPLICÍT
+        // Ak názov už obsahuje typ (napr. "Kečup Gurmán"), tak typ z premennej vymažeme, aby nebolo "Kečup Kečup Gurmán"
+        if (productType && specificName.toLowerCase().includes(productType.toLowerCase())) {
+            productType = ""; 
+        }
+        // Ak názov už obsahuje značku, vymažeme značku
+        if (brand && specificName.toLowerCase().includes(brand.toLowerCase())) {
+            brand = "";
+        }
+
+        // SKLADANIE: Typ -> Značka -> Názov
+        let parts = [];
+        if (productType) parts.push(productType);
+        if (brand) parts.push(brand);
+        parts.push(specificName);
+
+        // Odstránime prázdne časti a spojíme
+        let finalName = parts.filter(Boolean).join(' ');
+        
+        // Capitalize first letter
+        finalName = finalName.charAt(0).toUpperCase() + finalName.slice(1);
+
+        // --- B. Hmotnosť ---
         let finalQuantity = 0;
         let finalUnit = 'g';
 
-        // A) Priamo z DB poľa net_weight
+        // 1. Skúsime presnú hodnotu z DB
         if (fastData.netWeight) {
             finalQuantity = parseFloat(fastData.netWeight);
             finalUnit = fastData.netUnit ? fastData.netUnit.toLowerCase() : 'g';
-            // Normalizácia jednotiek z OFF
-            if (finalUnit === 'gram') finalUnit = 'g';
-            if (finalUnit === 'kilogram') finalUnit = 'kg';
-            if (finalUnit === 'liter') finalUnit = 'l';
-            if (finalUnit === 'milliliter') finalUnit = 'ml';
-        } 
+        }
         
-        // B) Ak A zlyhalo, Regex na "quantity" string (napr. "500 g e")
+        // 2. Ak zlyhalo, skúsime "quantity" string (napr. "520 g")
         if (finalQuantity === 0) {
             const parsed = parseQuantityFromText(fastData.quantityStr);
             if (parsed) {
@@ -123,16 +192,22 @@ export async function parseSmartEntry(input: string, existingCategories: Categor
             }
         }
 
-        // C) Ak B zlyhalo, Regex na Názov (napr. "Mlieko 1L")
+        // 3. Ak zlyhalo, skúsime nájsť váhu v názve
         if (finalQuantity === 0) {
-            const parsedName = parseQuantityFromText(finalName);
+            const parsedName = parseQuantityFromText(fastData.rawName);
             if (parsedName) {
                 finalQuantity = parsedName.value;
                 finalUnit = parsedName.unit;
             }
         }
 
-        // --- 3. Kategória (Tu použijeme AI, lebo to vie dobre odhadnúť) ---
+        // Normalizácia jednotiek
+        if (finalUnit === 'gram') finalUnit = 'g';
+        if (finalUnit === 'kilogram') finalUnit = 'kg';
+        if (finalUnit === 'liter' || finalUnit === 'litre') finalUnit = 'l';
+        if (finalUnit === 'milliliter') finalUnit = 'ml';
+
+        // --- C. Kategória (AI) ---
         let categoryName = "";
         try {
             const prompt = `Zoraď produkt "${finalName}" (tags: ${fastData.categories.slice(0,5).join(',')}) do jednej z kategórií: [${categoriesList}]. Vráť JSON {"categoryName": "..."}`;
@@ -143,26 +218,24 @@ export async function parseSmartEntry(input: string, existingCategories: Categor
             });
             const resJson = safeJsonParse(response.text);
             if (resJson && resJson.categoryName) categoryName = resJson.categoryName;
-        } catch (e) {
-            console.log("AI Category failed");
-        }
+        } catch (e) { }
 
         return {
             name: finalName,
-            quantity: finalQuantity, // Ak 0, user si doplní
+            quantity: finalQuantity,
             unit: finalUnit,
             categoryName: categoryName,
-            expiryDate: "" // Vždy prázdne, user si doplní
+            expiryDate: "" 
         };
     }
   }
   
-  // 2. SCENÁR: Fulltext vyhľadávanie (napr. "Mlieko 1l") - tu musí ísť AI
+  // 2. SCENÁR: Fulltext
   try {
     const searchPrompt = `Analyzuj text: "${input}". 
     Vráť JSON: 
     {
-      "name": "Názov produktu (bez hmotnosti)", 
+      "name": "Názov produktu (Typ + Značka + Názov)", 
       "quantity": číslo, 
       "unit": "g/kg/ml/l/ks", 
       "categoryName": "jedna z [${categoriesList}]"
