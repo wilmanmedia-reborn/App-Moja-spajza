@@ -19,48 +19,73 @@ export const BarcodeScanner: React.FC<Props> = ({ onScan, onClose, isAnalyzing }
 
   useEffect(() => {
     let html5QrCode: any;
+    let mounted = true;
 
     const startScanner = async () => {
-      try {
-        if (typeof Html5Qrcode === 'undefined') {
-          setError("Pripravujem skener...");
-          return;
-        }
+      // 1. Kontrola HTTPS (vyžadované pre kameru na mobiloch)
+      if (window.isSecureContext === false && window.location.hostname !== 'localhost') {
+        if(mounted) setError("Kamera vyžaduje zabezpečené pripojenie (HTTPS).");
+        return;
+      }
 
+      // 2. Kontrola knižnice
+      if (typeof Html5Qrcode === 'undefined') {
+        if(mounted) setError("Chýba knižnica skenera. Skúste obnoviť stránku.");
+        return;
+      }
+
+      try {
         html5QrCode = new Html5Qrcode(containerId);
         scannerRef.current = html5QrCode;
 
-        // Vylepšené rozmery skenovacieho okna
-        const qrboxFunction = (viewWidth: number, viewHeight: number) => {
-            const minEdge = Math.min(viewWidth, viewHeight);
-            const width = Math.floor(minEdge * 0.8); // 80% šírky
-            const height = Math.floor(width * 0.5);  // Široký obdĺžnik pre EAN
-            return { width, height };
-        };
-
+        // Základná konfigurácia skenovania
         const config = { 
-          fps: 10, 
-          qrbox: qrboxFunction,
+          fps: 15, // Vyššie FPS pre plynulejší obraz
+          qrbox: (viewWidth: number, viewHeight: number) => ({ 
+              width: Math.floor(Math.min(viewWidth, viewHeight) * 0.8), 
+              height: Math.floor(Math.min(viewWidth, viewHeight) * 0.5) 
+          }),
           aspectRatio: 1.0,
-          experimentalFeatures: {
-            useBarCodeDetectorIfSupported: true
-          }
+          experimentalFeatures: { useBarCodeDetectorIfSupported: true }
         };
 
-        // FIX: Zjednodušená konfigurácia kamery. 
-        // Odstránené striktné 'min' a 'max' constraints, ktoré spôsobovali OverconstrainedError na iOS/niektorých Androidoch.
-        // Ponechané 'ideal' pre snahu o vyššiu kvalitu.
-        const cameraConfig = { 
-            facingMode: "environment",
-            width: { ideal: 1920 },
-            height: { ideal: 1080 }
-        };
+        // 3. Získanie zoznamu kamier (Najspoľahlivejšia metóda)
+        let cameras = [];
+        try {
+            cameras = await Html5Qrcode.getCameras();
+        } catch (e) {
+            throw new Error("Nemáte povolenie na kameru alebo nie je dostupná.");
+        }
 
+        if (!cameras || cameras.length === 0) {
+            throw new Error("Nebola nájdená žiadna kamera.");
+        }
+
+        // 4. Inteligentný výber zadnej kamery
+        // Hľadáme kameru, ktorá má v názve 'back' alebo 'environment'
+        let cameraId = cameras[0].id; // Fallback na prvú
+        
+        // Zoradenie kamier - na mobiloch je často hlavná kamera posledná alebo má špecifický label
+        const backCamera = cameras.find((c: any) => 
+            c.label.toLowerCase().includes('back') || 
+            c.label.toLowerCase().includes('zadn') ||
+            c.label.toLowerCase().includes('environment')
+        );
+
+        if (backCamera) {
+            cameraId = backCamera.id;
+        } else if (cameras.length > 1) {
+            // Ak nevieme identifikovať podľa mena, skúsime poslednú (často wide lens na mobiloch)
+            cameraId = cameras[cameras.length - 1].id;
+        }
+
+        // 5. Spustenie skenera s KONKRÉTNYM ID kamery
+        // Toto obchádza problémy s 'OverconstrainedError' pri použití generic constraints
         await html5QrCode.start(
-          cameraConfig, 
+          cameraId, 
           config, 
           (text: string) => {
-            if (!isAnalyzing) {
+            if (!isAnalyzing && mounted) {
               if (navigator.vibrate) navigator.vibrate(50);
               onScan(text);
             }
@@ -68,7 +93,8 @@ export const BarcodeScanner: React.FC<Props> = ({ onScan, onClose, isAnalyzing }
           () => {} 
         );
         
-        // --- APLIKOVANIE POKROČILÝCH FUNKCIÍ (ZOOM & FOCUS) ---
+        // 6. Aplikovanie Zoomu a Blesku (Ak to hardvér podporuje)
+        // Toto robíme až PO úspešnom štarte, aby sme nezablokovali spustenie
         try {
           const videoTrack = html5QrCode.videoElement?.srcObject?.getVideoTracks()[0];
           
@@ -76,52 +102,49 @@ export const BarcodeScanner: React.FC<Props> = ({ onScan, onClose, isAnalyzing }
              const capabilities = videoTrack.getCapabilities();
              const constraints: any = { advanced: [] };
 
-             // 1. Detekcia a nastavenie Blesku
              if (capabilities.torch) {
                  setHasTorch(true);
              }
 
-             // 2. Aplikovanie Zoomu (ak je dostupný) - pomáha pri skenovaní z diaľky
+             // Zoom pre skenovanie z diaľky
              if (capabilities.zoom) {
                  const currentZoom = videoTrack.getSettings().zoom || 1;
                  const maxZoom = capabilities.zoom.max || 3;
-                 // Nastavíme zoom na 2.0x alebo polovicu maxima (podľa toho čo je menšie)
-                 const targetZoom = Math.min(2.0, maxZoom);
+                 // Nastavíme jemný zoom (cca 1.8x), ktorý pomáha ostriť na čiarové kódy
+                 const targetZoom = Math.min(1.8, maxZoom);
                  
                  if (targetZoom > currentZoom) {
                     constraints.advanced.push({ zoom: targetZoom });
                  }
              }
              
-             // 3. Aplikovanie Focusu (ak je dostupný)
+             // Autofocus
              if (capabilities.focusMode && Array.isArray(capabilities.focusMode)) {
                  if (capabilities.focusMode.includes('continuous')) {
                      constraints.advanced.push({ focusMode: 'continuous' });
-                 } else if (capabilities.focusMode.includes('auto')) {
-                     constraints.advanced.push({ focusMode: 'auto' });
                  }
              }
 
-             // Aplikuj constraints ak nejaké máme
              if (constraints.advanced.length > 0) {
                  await videoTrack.applyConstraints(constraints);
              }
           }
         } catch (e) {
-            console.warn("Advanced camera features not supported:", e);
+            console.warn("Advanced camera features failed (ignoring):", e);
         }
 
       } catch (err: any) {
-        console.error("Scanner init error:", err);
-        setError("Kamera nie je k dispozícii alebo nemáte povolenie. Skúste obnoviť stránku.");
+        console.error("Scanner Error:", err);
+        if(mounted) setError(err.message || "Nepodarilo sa spustiť kameru. Skontrolujte povolenia.");
       }
     };
 
     // Malé oneskorenie pre istotu, že DOM je ready
-    const timer = setTimeout(startScanner, 300);
+    const timer = setTimeout(startScanner, 100);
 
     return () => {
       clearTimeout(timer);
+      mounted = false;
       if (html5QrCode && html5QrCode.isScanning) {
         html5QrCode.stop().catch((e: any) => console.log("Stop failed", e));
       }
@@ -195,7 +218,10 @@ export const BarcodeScanner: React.FC<Props> = ({ onScan, onClose, isAnalyzing }
         {error && (
           <div className="absolute inset-0 bg-black flex flex-col items-center justify-center p-8 text-center z-[60]">
             <p className="text-red-500 font-bold mb-6 text-lg">{error}</p>
-            <button onClick={onClose} className="bg-white text-black px-8 py-3 rounded-full font-black text-sm uppercase tracking-widest shadow-xl">Zavrieť</button>
+            <div className="flex gap-4">
+                <button onClick={() => window.location.reload()} className="bg-white/10 text-white px-6 py-3 rounded-full font-black text-xs uppercase tracking-widest">Obnoviť</button>
+                <button onClick={onClose} className="bg-white text-black px-8 py-3 rounded-full font-black text-xs uppercase tracking-widest shadow-xl">Zavrieť</button>
+            </div>
           </div>
         )}
       </div>
