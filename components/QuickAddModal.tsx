@@ -11,29 +11,30 @@ interface Props {
 
 export const QuickAddModal: React.FC<Props> = ({ isOpen, onClose, onConfirm, item }) => {
   const [expiryDate, setExpiryDate] = useState('');
+  const [amount, setAmount] = useState<number>(0);
 
-  // Reset pri otvorení
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && item) {
         setExpiryDate('');
+        // Prednastavíme hodnotu podľa nastavenia produktu (napr. 350 alebo 1)
+        const defaultAmount = item.unit === Unit.KS ? 1 : (item.quantityPerPack || 0);
+        setAmount(defaultAmount);
     }
-  }, [isOpen]);
+  }, [isOpen, item]);
 
   if (!isOpen || !item) return null;
 
-  // Vypočítame, koľko "váži" jedno balenie.
-  // Ak je to KS, je to 1. Ak je to napr. múka (kg), a quantityPerPack je 1kg, tak je to 1.
-  // Ak je to 500g balenie, tak je to 500.
-  const quantityToAdd = item.unit === Unit.KS ? 1 : (item.quantityPerPack || 0);
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onConfirm(expiryDate || undefined, quantityToAdd);
+    onConfirm(expiryDate || undefined, amount);
   };
 
   const handleSkip = () => {
-    onConfirm(undefined, quantityToAdd);
+    onConfirm(undefined, amount);
   };
+
+  // Krok pre tlačidlá +/- (pre gramy väčší skok, pre litre/ks menší)
+  const step = item.unit === Unit.G || item.unit === Unit.ML ? 10 : 1;
 
   return (
     <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 sm:p-6" onClick={(e) => e.target === e.currentTarget && onClose()}>
@@ -45,14 +46,38 @@ export const QuickAddModal: React.FC<Props> = ({ isOpen, onClose, onConfirm, ite
 
         <form onSubmit={handleSubmit} className="w-full flex flex-col gap-5">
           
-          {/* Info o pridávanom množstve (Statické) */}
-          <div className="w-full py-3 px-4 bg-emerald-50 dark:bg-emerald-950/30 rounded-2xl border border-emerald-100 dark:border-emerald-800/50 text-center">
-             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
-                Pridávate 1 balenie
-             </p>
-             <p className="text-2xl font-black text-emerald-700 dark:text-emerald-400">
-                + {quantityToAdd} <span className="text-sm align-middle">{item.unit}</span>
-             </p>
+          {/* Editovateľná hmotnosť / obsah balenia */}
+          <div className="w-full space-y-2">
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">
+                Obsah tohto balenia ({item.unit})
+            </label>
+            <div className="flex items-center h-[60px] bg-slate-100 dark:bg-slate-800 rounded-2xl p-1 gap-1 border border-slate-200 dark:border-slate-700">
+                <button 
+                    type="button"
+                    onClick={() => setAmount(Math.max(0, amount - step))}
+                    className="w-14 h-full flex shrink-0 items-center justify-center bg-white dark:bg-slate-700 text-slate-900 dark:text-white rounded-xl shadow-sm text-xl font-black active:scale-95 transition-transform"
+                >
+                    -
+                </button>
+                <input 
+                    type="number" 
+                    step="any"
+                    value={amount}
+                    onChange={(e) => setAmount(parseFloat(e.target.value) || 0)}
+                    onFocus={(e) => e.target.select()}
+                    className="flex-1 w-full min-w-0 bg-transparent text-center font-black text-2xl text-emerald-600 dark:text-emerald-400 outline-none border-none p-0 appearance-none m-0 truncate"
+                />
+                <button 
+                    type="button"
+                    onClick={() => setAmount(amount + step)}
+                    className="w-14 h-full flex shrink-0 items-center justify-center bg-white dark:bg-slate-700 text-slate-900 dark:text-white rounded-xl shadow-sm text-xl font-black active:scale-95 transition-transform"
+                >
+                    +
+                </button>
+            </div>
+            <p className="text-[9px] text-slate-400 text-center">
+                Ak je toto balenie väčšie/menšie ako zvyčajne, upravte hodnotu.
+            </p>
           </div>
 
           {/* Expirácia */}
@@ -64,10 +89,6 @@ export const QuickAddModal: React.FC<Props> = ({ isOpen, onClose, onConfirm, ite
                 </label>
             </div>
             
-            <p className="text-[9px] text-slate-400 text-center px-4 mb-2 leading-tight">
-                Zadajte dátum spotreby uvedený na obale tohto kusu.
-            </p>
-
             <div className="relative">
                 <input 
                   type="date" 
