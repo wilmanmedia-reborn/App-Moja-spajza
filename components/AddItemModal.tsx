@@ -197,6 +197,19 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
       setTempBatches(prev => prev.filter(b => b.id !== batchId));
   };
 
+  const handleAddBatch = () => {
+    const qtyToAdd = formData.unit === Unit.KS ? 1 : (formData.quantityPerPack || 0);
+    if (qtyToAdd <= 0) return;
+    
+    const newBatch: Batch = {
+        id: Math.random().toString(36).substr(2, 9),
+        quantity: qtyToAdd,
+        expiryDate: formData.expiryDate, // Použije aktuálne nastavený dátum z pickera
+        addedDate: Date.now()
+    };
+    setTempBatches(prev => [newBatch, ...prev]);
+  };
+
   // Helper pre Stepper Input
   const StepperInput = ({ 
     value, 
@@ -204,14 +217,16 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
     min = 0, 
     disabled = false,
     label,
-    className = ""
+    className = "",
+    onAddOnly
   }: { 
     value: number, 
     onChange: (val: number) => void, 
     min?: number,
     disabled?: boolean,
     label: string,
-    className?: string
+    className?: string,
+    onAddOnly?: () => void
   }) => (
     <div className={`space-y-1.5 ${className}`}>
         <label className={`block text-[8px] font-black uppercase tracking-widest text-center ${disabled ? 'text-emerald-600' : 'text-slate-400'}`}>
@@ -219,8 +234,21 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
         </label>
         
         {disabled ? (
-            <div className="w-full h-[60px] flex items-center justify-center bg-emerald-50 dark:bg-emerald-950/30 text-emerald-900 dark:text-emerald-100 rounded-2xl font-black text-[15px] border border-emerald-200 dark:border-emerald-800 opacity-80">
-                {value}
+            <div className="flex items-center h-[60px] bg-slate-100 dark:bg-slate-800 rounded-2xl p-1 gap-1 border border-emerald-100 dark:border-emerald-900/30">
+                {/* Read-only Value */}
+                <div className="flex-1 flex items-center justify-center font-black text-[18px] text-slate-900 dark:text-white">
+                    {value}
+                </div>
+                {/* Add Button for editing mode */}
+                {onAddOnly && (
+                    <button 
+                        type="button"
+                        onClick={onAddOnly}
+                        className="w-14 h-full flex shrink-0 items-center justify-center bg-emerald-600 text-white rounded-xl shadow-lg shadow-emerald-600/20 text-xl font-black active:scale-95 transition-transform"
+                    >
+                        +
+                    </button>
+                )}
             </div>
         ) : (
             <div className="flex items-center h-[60px] bg-slate-100 dark:bg-slate-800 rounded-2xl p-1 gap-1">
@@ -380,16 +408,10 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
                   <StepperInput 
                     label={editingItem ? 'Mám celkom (auto)' : 'Mám (ks)'}
                     value={editingItem ? tempBatches.reduce((acc, b) => acc + (formData.unit === Unit.KS ? b.quantity : 1), 0) : formData.currentPacks}
-                    // Poznámka: pre KS sa počíta kus = quantity. Pre g/ml sa počíta kus = 1 batch.
-                    // Ale počkať, batch.quantity je hmotnosť v g. Takže počet kusov je počet batchov.
-                    // Oprava logiky zobrazenia:
-                    // Ak unit=KS, batch.quantity=1. Count = sum(quantity).
-                    // Ak unit=G, batch.quantity=500. Count = batches.length.
-                    // Zjednodušenie pre UI: Zobrazujeme len počet riadkov v batch list ak nie sme KS?
-                    // Nie, radšej necháme pôvodnú logiku, ktorá bola orientovaná na "kusy".
                     onChange={(val) => !editingItem && setFormData({...formData, currentPacks: val})}
                     disabled={!!editingItem} 
                     min={0}
+                    onAddOnly={editingItem ? handleAddBatch : undefined}
                   />
 
                   {/* Stepper pre CIEĽ (Target Packs) */}
@@ -432,13 +454,15 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
                             <p className="text-center text-[10px] text-slate-400 italic py-2">Žiadne naskladnené kusy</p>
                         )}
                     </div>
+                    <p className="text-[9px] text-slate-400 text-center px-4">
+                        Tip: Pre pridanie šarže s dátumom nastavte dátum dole a kliknite na "+" pri "Mám celkom".
+                    </p>
                 </div>
               )}
 
               {/* Expirácia a Vlastná výroba */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-stretch">
-                {!editingItem && (
-                    <div className="space-y-2 min-w-0">
+                <div className="space-y-2 min-w-0">
                     <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Spotrebujte do</label>
                     <div className="relative">
                         <input 
@@ -451,10 +475,9 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
                             style={{ WebkitAppearance: 'none' }}
                         />
                     </div>
-                    </div>
-                )}
+                </div>
                 
-                <div className={`space-y-2 ${editingItem ? 'sm:col-span-2' : ''}`}>
+                <div className="space-y-2">
                   <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Pôvod produktu</label>
                   <div className="flex h-[60px] bg-slate-100 dark:bg-slate-800 rounded-2xl overflow-hidden p-1">
                      <button

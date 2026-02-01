@@ -51,14 +51,14 @@ export const InventoryItemRow: React.FC<Props> = ({ item, location, category, on
         {/* Name & Location */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1.5">
-            <h3 className={`font-black truncate text-sm sm:text-base transition-colors ${isRunningLow ? 'text-amber-700 dark:text-amber-400' : 'text-slate-900 dark:text-white'}`}>
+            <h3 className={`font-black text-sm sm:text-base leading-tight transition-colors line-clamp-2 break-words ${isRunningLow ? 'text-amber-700 dark:text-amber-400' : 'text-slate-900 dark:text-white'}`}>
               {item.name}
             </h3>
             {item.isHomemade && (
-              <span className="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-[8px] font-black uppercase px-2 py-0.5 rounded-md shrink-0">domáce</span>
+              <span className="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-[8px] font-black uppercase px-2 py-0.5 rounded-md shrink-0 self-start mt-0.5">domáce</span>
             )}
             {isRunningLow && (
-              <span className="bg-amber-500 text-white text-[8px] font-black uppercase px-2 py-0.5 rounded-md shrink-0">dochádza</span>
+              <span className="bg-amber-500 text-white text-[8px] font-black uppercase px-2 py-0.5 rounded-md shrink-0 self-start mt-0.5">dochádza</span>
             )}
           </div>
           <div className="flex items-center gap-3 text-[10px] text-slate-400 dark:text-slate-500 font-black uppercase tracking-widest truncate">
