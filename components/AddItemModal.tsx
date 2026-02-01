@@ -254,6 +254,15 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
     </div>
   );
 
+  // Zoradenie batchov pre zobrazenie:
+  // 1. Najskoršia expirácia hore (asc)
+  // 2. Položky bez expirácie na spodok
+  const displayBatches = [...tempBatches].sort((a, b) => {
+    if (!a.expiryDate) return 1;
+    if (!b.expiryDate) return -1;
+    return new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime();
+  });
+
   return (
     <>
       <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-slate-950/80 backdrop-blur-md px-0 sm:px-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
@@ -398,11 +407,11 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
               {editingItem && (
                 <div className="space-y-3">
                     <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Jednotlivé šarže a expirácie</label>
-                    <div className="bg-slate-50 dark:bg-slate-800/40 rounded-3xl p-4 border border-slate-100 dark:border-slate-800 space-y-2 max-h-40 overflow-y-auto">
-                        {tempBatches.map((batch, index) => (
+                    <div className="bg-slate-50 dark:bg-slate-800/40 rounded-3xl p-4 border border-slate-100 dark:border-slate-800 space-y-2">
+                        {displayBatches.map((batch, index) => (
                             <div key={batch.id} className="flex items-center gap-3 bg-white dark:bg-slate-900 p-3 rounded-2xl border border-slate-100 dark:border-slate-800">
                                 <div className="flex-1">
-                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                                    <p className={`text-[10px] font-bold uppercase tracking-wider ${index === 0 && batch.expiryDate ? 'text-red-500' : 'text-slate-400'}`}>
                                         {batch.expiryDate ? batch.expiryDate : 'Bez dátumu'}
                                     </p>
                                 </div>
