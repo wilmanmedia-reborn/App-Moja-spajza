@@ -199,6 +199,22 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
       setTempBatches(prev => prev.filter(b => b.id !== batchId));
   };
 
+  // Lokálne odstránenie 1 kusu pre Stepper (odstráni najstarší batch)
+  const handleLocalConsume = () => {
+    if (tempBatches.length === 0) return;
+
+    // Zoradíme: najstaršie expirácie prvé, null expirácie nakoniec
+    const sorted = [...tempBatches].sort((a, b) => {
+        if (!a.expiryDate) return 1;
+        if (!b.expiryDate) return -1;
+        return new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime();
+    });
+
+    // Odstránime prvý (najstarší) batch
+    const batchToRemove = sorted[0];
+    setTempBatches(prev => prev.filter(b => b.id !== batchToRemove.id));
+  };
+
   // Helper pre Stepper Input
   const StepperInput = ({ 
     value, 
@@ -221,11 +237,11 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
         </label>
         
         {disabled && editingItem ? (
-            // Custom UI pre Edit Mode - Trigger pre externé modaly
+            // Custom UI pre Edit Mode - Trigger pre lokálne akcie
             <div className="flex items-center h-[60px] bg-slate-100 dark:bg-slate-800 rounded-2xl p-1 gap-1">
                 <button 
                     type="button"
-                    onClick={() => onConsume && onConsume(editingItem)}
+                    onClick={handleLocalConsume} 
                     className="w-11 h-full flex shrink-0 items-center justify-center bg-white dark:bg-slate-700 text-slate-900 dark:text-white rounded-xl shadow-sm text-lg font-black active:scale-95 transition-transform"
                 >
                     -

@@ -151,6 +151,10 @@ const App: React.FC = () => {
         return;
     }
 
+    // 1. Nájdeme aktuálnu položku (aby sme pracovali s fresh dátami)
+    const currentItem = items.find(i => i.id === quickAddModalItem.id);
+    if (!currentItem) return;
+
     const newBatch: Batch = {
       id: Math.random().toString(36).substr(2, 9),
       quantity: qtyToAdd,
@@ -158,31 +162,28 @@ const App: React.FC = () => {
       addedDate: Date.now()
     };
 
-    let updatedItem: FoodItem | null = null;
+    // 2. Vypočítame novú verziu položky
+    const updatedBatches = [...(currentItem.batches || []), newBatch];
+    
+    const sortedBatches = [...updatedBatches].sort((a, b) => {
+        if (!a.expiryDate) return 1;
+        if (!b.expiryDate) return -1;
+        return new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime();
+    });
+    const nearestExpiry = sortedBatches.find(b => b.expiryDate)?.expiryDate;
 
-    setItems(prev => prev.map(i => {
-      if (i.id !== quickAddModalItem.id) return i;
-      
-      const updatedBatches = [...(i.batches || []), newBatch];
-      
-      const sortedBatches = [...updatedBatches].sort((a, b) => {
-          if (!a.expiryDate) return 1;
-          if (!b.expiryDate) return -1;
-          return new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime();
-      });
-      const nearestExpiry = sortedBatches.find(b => b.expiryDate)?.expiryDate;
+    const updatedItem: FoodItem = {
+      ...currentItem,
+      currentQuantity: currentItem.currentQuantity + qtyToAdd,
+      batches: updatedBatches,
+      expiryDate: nearestExpiry || currentItem.expiryDate 
+    };
 
-      updatedItem = {
-        ...i,
-        currentQuantity: i.currentQuantity + qtyToAdd,
-        batches: updatedBatches,
-        expiryDate: nearestExpiry || i.expiryDate 
-      };
-      return updatedItem;
-    }));
+    // 3. Aktualizujeme stav položiek
+    setItems(prev => prev.map(i => i.id === updatedItem.id ? updatedItem : i));
 
-    // Ak sme v režime editácie tej istej položky, aktualizujeme aj editingItem, aby sa AddItemModal prekreslil
-    if (editingItem && updatedItem && editingItem.id === (updatedItem as FoodItem).id) {
+    // 4. Ak sme v režime editácie tej istej položky, aktualizujeme aj editingItem
+    if (editingItem && editingItem.id === updatedItem.id) {
         setEditingItem(updatedItem);
     }
 
@@ -199,68 +200,72 @@ const App: React.FC = () => {
   const confirmConsume = (batchId: string | null) => {
     if (!consumeModalItem) return;
 
-    let updatedItem: FoodItem | null = null;
+    // 1. Nájdeme aktuálnu položku (fresh dáta)
+    const currentItem = items.find(i => i.id === consumeModalItem.id);
+    if (!currentItem) return;
 
-    setItems(prev => prev.map(item => {
-        if (item.id !== consumeModalItem.id) return item;
+    let newBatches = [...(currentItem.batches || [])];
+    let newTotalQty = currentItem.currentQuantity;
 
-        let newBatches = [...(item.batches || [])];
-        let newTotalQty = item.currentQuantity;
-
-        if (batchId) {
-            const batchIndex = newBatches.findIndex(b => b.id === batchId);
-            if (batchIndex !== -1) {
-                const batchQty = newBatches[batchIndex].quantity;
-                newBatches.splice(batchIndex, 1);
-                newTotalQty = Math.max(0, newTotalQty - batchQty);
-            }
-        } else {
-            // Legacy/Fallback logika
-            const qtyToRemove = item.unit === Unit.KS ? 1 : (item.quantityPerPack || 1);
-            newTotalQty = Math.max(0, newTotalQty - qtyToRemove);
-            
-            let remainingToRemove = qtyToRemove;
-            newBatches.sort((a, b) => {
-                 if (!a.expiryDate) return 1;
-                 if (!b.expiryDate) return -1;
-                 return new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime();
-            });
-            
-            const keptBatches = [];
-            for (const b of newBatches) {
-                if (remainingToRemove <= 0) {
-                    keptBatches.push(b);
-                    continue;
-                }
-                
-                if (b.quantity <= remainingToRemove) {
-                    remainingToRemove -= b.quantity;
-                } else {
-                    keptBatches.push({ ...b, quantity: b.quantity - remainingToRemove });
-                    remainingToRemove = 0;
-                }
-            }
-            newBatches = keptBatches;
+    if (batchId) {
+        // Odstránenie konkrétneho batchu
+        const batchIndex = newBatches.findIndex(b => b.id === batchId);
+        if (batchIndex !== -1) {
+            const batchQty = newBatches[batchIndex].quantity;
+            newBatches.splice(batchIndex, 1);
+            newTotalQty = Math.max(0, newTotalQty - batchQty);
         }
-
-        const sortedBatches = [...newBatches].sort((a, b) => {
-            if (!a.expiryDate) return 1;
-            if (!b.expiryDate) return -1;
-            return new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime();
+    } else {
+        // Legacy/Fallback logika (ak by prišlo null)
+        const qtyToRemove = currentItem.unit === Unit.KS ? 1 : (currentItem.quantityPerPack || 1);
+        newTotalQty = Math.max(0, newTotalQty - qtyToRemove);
+        
+        let remainingToRemove = qtyToRemove;
+        
+        // Zoradíme najprv podľa expirácie, aby sme odoberali zo starých
+        newBatches.sort((a, b) => {
+             if (!a.expiryDate) return 1;
+             if (!b.expiryDate) return -1;
+             return new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime();
         });
-        const nearestExpiry = sortedBatches.find(b => b.expiryDate)?.expiryDate;
+        
+        const keptBatches = [];
+        for (const b of newBatches) {
+            if (remainingToRemove <= 0) {
+                keptBatches.push(b);
+                continue;
+            }
+            
+            if (b.quantity <= remainingToRemove) {
+                remainingToRemove -= b.quantity;
+            } else {
+                keptBatches.push({ ...b, quantity: b.quantity - remainingToRemove });
+                remainingToRemove = 0;
+            }
+        }
+        newBatches = keptBatches;
+    }
 
-        updatedItem = {
-            ...item,
-            currentQuantity: newTotalQty,
-            batches: newBatches,
-            expiryDate: nearestExpiry || item.expiryDate
-        };
-        return updatedItem;
-    }));
+    const sortedBatches = [...newBatches].sort((a, b) => {
+        if (!a.expiryDate) return 1;
+        if (!b.expiryDate) return -1;
+        return new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime();
+    });
+    const nearestExpiry = sortedBatches.find(b => b.expiryDate)?.expiryDate;
 
-    // Ak sme v režime editácie, aktualizujeme dáta vo formulári
-    if (editingItem && updatedItem && editingItem.id === (updatedItem as FoodItem).id) {
+    // 2. Vytvoríme aktualizovaný objekt položky
+    const updatedItem: FoodItem = {
+        ...currentItem,
+        currentQuantity: newTotalQty,
+        batches: sortedBatches,
+        expiryDate: nearestExpiry || currentItem.expiryDate
+    };
+
+    // 3. Aktualizujeme hlavný zoznam
+    setItems(prev => prev.map(item => item.id === updatedItem.id ? updatedItem : item));
+
+    // 4. Synchronizácia pre AddItemModal: Ak práve editujeme túto položku, pošleme tam novú verziu
+    if (editingItem && editingItem.id === updatedItem.id) {
         setEditingItem(updatedItem);
     }
 
