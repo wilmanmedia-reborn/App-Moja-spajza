@@ -13,9 +13,11 @@ interface Props {
   editingItem: FoodItem | null;
   locations: Location[];
   categories: Category[];
+  onQuickAdd?: (item: FoodItem) => void;
+  onConsume?: (item: FoodItem) => void;
 }
 
-export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate, onAddCategory, editingItem, locations, categories }) => {
+export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate, onAddCategory, editingItem, locations, categories, onQuickAdd, onConsume }) => {
   const [showScanner, setShowScanner] = useState(false);
   const [isAiProcessing, setIsAiProcessing] = useState(false);
   const [scannedCode, setScannedCode] = useState<string | null>(null);
@@ -197,19 +199,6 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
       setTempBatches(prev => prev.filter(b => b.id !== batchId));
   };
 
-  const handleAddBatch = () => {
-    const qtyToAdd = formData.unit === Unit.KS ? 1 : (formData.quantityPerPack || 0);
-    if (qtyToAdd <= 0) return;
-    
-    const newBatch: Batch = {
-        id: Math.random().toString(36).substr(2, 9),
-        quantity: qtyToAdd,
-        expiryDate: formData.expiryDate, // Použije aktuálne nastavený dátum z pickera
-        addedDate: Date.now()
-    };
-    setTempBatches(prev => [newBatch, ...prev]);
-  };
-
   // Helper pre Stepper Input
   const StepperInput = ({ 
     value, 
@@ -217,40 +206,43 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
     min = 0, 
     disabled = false,
     label,
-    className = "",
-    onAddOnly
+    className = ""
   }: { 
     value: number, 
     onChange: (val: number) => void, 
     min?: number,
     disabled?: boolean,
     label: string,
-    className?: string,
-    onAddOnly?: () => void
+    className?: string
   }) => (
     <div className={`space-y-1.5 ${className}`}>
         <label className={`block text-[8px] font-black uppercase tracking-widest text-center ${disabled ? 'text-emerald-600' : 'text-slate-400'}`}>
             {label}
         </label>
         
-        {disabled ? (
-            <div className="flex items-center h-[60px] bg-slate-100 dark:bg-slate-800 rounded-2xl p-1 gap-1 border border-emerald-100 dark:border-emerald-900/30">
-                {/* Read-only Value */}
+        {disabled && editingItem ? (
+            // Custom UI pre Edit Mode - Trigger pre externé modaly
+            <div className="flex items-center h-[60px] bg-slate-100 dark:bg-slate-800 rounded-2xl p-1 gap-1">
+                <button 
+                    type="button"
+                    onClick={() => onConsume && onConsume(editingItem)}
+                    className="w-11 h-full flex shrink-0 items-center justify-center bg-white dark:bg-slate-700 text-slate-900 dark:text-white rounded-xl shadow-sm text-lg font-black active:scale-95 transition-transform"
+                >
+                    -
+                </button>
                 <div className="flex-1 flex items-center justify-center font-black text-[18px] text-slate-900 dark:text-white">
                     {value}
                 </div>
-                {/* Add Button for editing mode */}
-                {onAddOnly && (
-                    <button 
-                        type="button"
-                        onClick={onAddOnly}
-                        className="w-14 h-full flex shrink-0 items-center justify-center bg-emerald-600 text-white rounded-xl shadow-lg shadow-emerald-600/20 text-xl font-black active:scale-95 transition-transform"
-                    >
-                        +
-                    </button>
-                )}
+                <button 
+                    type="button"
+                    onClick={() => onQuickAdd && onQuickAdd(editingItem)}
+                    className="w-11 h-full flex shrink-0 items-center justify-center bg-emerald-500 text-white rounded-xl shadow-sm shadow-emerald-500/30 text-lg font-black active:scale-95 transition-transform"
+                >
+                    +
+                </button>
             </div>
         ) : (
+            // Default Stepper
             <div className="flex items-center h-[60px] bg-slate-100 dark:bg-slate-800 rounded-2xl p-1 gap-1">
                 <button 
                     type="button"
@@ -283,8 +275,6 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
   );
 
   // Zoradenie batchov pre zobrazenie:
-  // 1. Najskoršia expirácia hore (asc)
-  // 2. Položky bez expirácie na spodok
   const displayBatches = [...tempBatches].sort((a, b) => {
     if (!a.expiryDate) return 1;
     if (!b.expiryDate) return -1;
@@ -293,7 +283,8 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
 
   return (
     <>
-      <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-slate-950/80 backdrop-blur-md px-0 sm:px-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      {/* Z-Index zmenený na 60, aby QuickAdd (70) bol nad ním */}
+      <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-slate-950/80 backdrop-blur-md px-0 sm:px-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
         <div className="bg-white dark:bg-slate-900 w-full max-w-md h-[92vh] sm:h-auto sm:max-h-[85vh] rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col border border-white/10 overflow-hidden animate-in slide-in-from-bottom duration-300">
           
           {/* Header */}
@@ -406,12 +397,11 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
                   
                   {/* Stepper pre MÁM (Current Packs) */}
                   <StepperInput 
-                    label={editingItem ? 'Mám celkom (auto)' : 'Mám (ks)'}
+                    label={editingItem ? 'Mám celkom' : 'Mám (ks)'}
                     value={editingItem ? tempBatches.reduce((acc, b) => acc + (formData.unit === Unit.KS ? b.quantity : 1), 0) : formData.currentPacks}
                     onChange={(val) => !editingItem && setFormData({...formData, currentPacks: val})}
                     disabled={!!editingItem} 
                     min={0}
-                    onAddOnly={editingItem ? handleAddBatch : undefined}
                   />
 
                   {/* Stepper pre CIEĽ (Target Packs) */}
@@ -454,9 +444,6 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
                             <p className="text-center text-[10px] text-slate-400 italic py-2">Žiadne naskladnené kusy</p>
                         )}
                     </div>
-                    <p className="text-[9px] text-slate-400 text-center px-4">
-                        Tip: Pre pridanie šarže s dátumom nastavte dátum dole a kliknite na "+" pri "Mám celkom".
-                    </p>
                 </div>
               )}
 

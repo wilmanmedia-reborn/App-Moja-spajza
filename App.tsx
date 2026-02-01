@@ -144,10 +144,8 @@ const App: React.FC = () => {
     if (!quickAddModalItem) return;
     
     // Použijeme špecifickú hmotnosť z modalu.
-    // Ak by náhodou user nič nezadal (0), použijeme fallback na 1 ak je to KS.
     const qtyToAdd = specificQuantity > 0 ? specificQuantity : (quickAddModalItem.unit === Unit.KS ? 1 : (quickAddModalItem.quantityPerPack || 0));
 
-    // Ak pridávame 0 (napr. 0g), ignorujeme
     if (qtyToAdd <= 0) {
         setQuickAddModalItem(null);
         return;
@@ -160,12 +158,13 @@ const App: React.FC = () => {
       addedDate: Date.now()
     };
 
+    let updatedItem: FoodItem | null = null;
+
     setItems(prev => prev.map(i => {
       if (i.id !== quickAddModalItem.id) return i;
       
       const updatedBatches = [...(i.batches || []), newBatch];
       
-      // Recalculate global expiry (earliest one)
       const sortedBatches = [...updatedBatches].sort((a, b) => {
           if (!a.expiryDate) return 1;
           if (!b.expiryDate) return -1;
@@ -173,13 +172,19 @@ const App: React.FC = () => {
       });
       const nearestExpiry = sortedBatches.find(b => b.expiryDate)?.expiryDate;
 
-      return {
+      updatedItem = {
         ...i,
         currentQuantity: i.currentQuantity + qtyToAdd,
         batches: updatedBatches,
-        expiryDate: nearestExpiry || i.expiryDate // update nearest shown date
+        expiryDate: nearestExpiry || i.expiryDate 
       };
+      return updatedItem;
     }));
+
+    // Ak sme v režime editácie tej istej položky, aktualizujeme aj editingItem, aby sa AddItemModal prekreslil
+    if (editingItem && updatedItem && editingItem.id === (updatedItem as FoodItem).id) {
+        setEditingItem(updatedItem);
+    }
 
     setQuickAddModalItem(null);
   };
@@ -194,22 +199,7 @@ const App: React.FC = () => {
   const confirmConsume = (batchId: string | null) => {
     if (!consumeModalItem) return;
 
-    // Defaultne odoberáme "veľkosť balenia", ale musíme zistiť z akej šarže.
-    // Ak máme batchId, pozrieme sa na veľkosť TEJ šarže, ak je to možné, alebo odoberáme packSize.
-    // Pre zjednodušenie odoberáme "štandardný pack size" alebo celú šaržu ak je menšia?
-    // User logic: "Odobral som 1 ks".
-    
-    // Logika: Ak má user šarže s rôznymi váhami (300g a 500g), odobratie 1ks je nejednoznačné bez výberu šarže.
-    // Tu zjednodušíme: Ak vyberie šaržu, odstránime ju celú? Nie, to by bolo "zjedol som všetko".
-    // Zatiaľ odoberieme globálny quantityPerPack (alebo 1ks).
-    // ALEBO: Ak šarža má 'quantity', čo reprezentuje váhu (napr 500), a odoberáme 1ks, tak odoberáme celých 500.
-    // Áno, Batch.quantity v tomto systéme reprezentuje "obsah v gramoch/ks tejto konkrétnej dávky".
-    
-    // Takže ak kliknem na šaržu "500g", znamená to, že som ju minul celú?
-    // V kontexte "trvanlivé potraviny" (konzerva, kečup) - áno, zvyčajne otvorím a miniem (alebo začnem míňať) celú fľašu.
-    // Aplikácia eviduje "Sklad". Otvorená vec je stále na sklade, ale "načatá".
-    // Ale tlačidlo "Odobrať" zvyčajne znamená "Vyhodiť obal / Minul som".
-    // Takže odoberieme CELÚ hodnotu danej šarže.
+    let updatedItem: FoodItem | null = null;
 
     setItems(prev => prev.map(item => {
         if (item.id !== consumeModalItem.id) return item;
@@ -218,29 +208,24 @@ const App: React.FC = () => {
         let newTotalQty = item.currentQuantity;
 
         if (batchId) {
-            // Nájdi šaržu
             const batchIndex = newBatches.findIndex(b => b.id === batchId);
             if (batchIndex !== -1) {
                 const batchQty = newBatches[batchIndex].quantity;
-                // Odstránime celú šaržu (predpoklad: spotreboval som tento kus/balenie)
                 newBatches.splice(batchIndex, 1);
                 newTotalQty = Math.max(0, newTotalQty - batchQty);
             }
         } else {
-            // Legacy/Neznáma šarža - odoberieme "štandardné" množstvo
+            // Legacy/Fallback logika
             const qtyToRemove = item.unit === Unit.KS ? 1 : (item.quantityPerPack || 1);
             newTotalQty = Math.max(0, newTotalQty - qtyToRemove);
             
-            // FIFO fallback pre batche
             let remainingToRemove = qtyToRemove;
-            // Zoradíme od najstarších
             newBatches.sort((a, b) => {
                  if (!a.expiryDate) return 1;
                  if (!b.expiryDate) return -1;
                  return new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime();
             });
             
-            // Odoberáme z batchov postupne
             const keptBatches = [];
             for (const b of newBatches) {
                 if (remainingToRemove <= 0) {
@@ -249,12 +234,8 @@ const App: React.FC = () => {
                 }
                 
                 if (b.quantity <= remainingToRemove) {
-                    // Celý batch zmizne
                     remainingToRemove -= b.quantity;
                 } else {
-                    // Batch sa zmenší (napr. z 1000g ostane 500g - divné pre "kusy", ale ok pre sypané)
-                    // Pre "ks" jednotky (napr. konzervy) toto nastane len ak batch.quantity > 1 (čo by nemalo byť ak batch=1kus)
-                    // Ak batch=1kus (500g) a chceme odobrať 500g -> batch zmizne.
                     keptBatches.push({ ...b, quantity: b.quantity - remainingToRemove });
                     remainingToRemove = 0;
                 }
@@ -262,7 +243,6 @@ const App: React.FC = () => {
             newBatches = keptBatches;
         }
 
-        // Recalculate expiry
         const sortedBatches = [...newBatches].sort((a, b) => {
             if (!a.expiryDate) return 1;
             if (!b.expiryDate) return -1;
@@ -270,13 +250,19 @@ const App: React.FC = () => {
         });
         const nearestExpiry = sortedBatches.find(b => b.expiryDate)?.expiryDate;
 
-        return {
+        updatedItem = {
             ...item,
             currentQuantity: newTotalQty,
             batches: newBatches,
             expiryDate: nearestExpiry || item.expiryDate
         };
+        return updatedItem;
     }));
+
+    // Ak sme v režime editácie, aktualizujeme dáta vo formulári
+    if (editingItem && updatedItem && editingItem.id === (updatedItem as FoodItem).id) {
+        setEditingItem(updatedItem);
+    }
 
     setConsumeModalItem(null);
   };
@@ -501,7 +487,18 @@ const App: React.FC = () => {
         )}
       </main>
 
-      <AddItemModal isOpen={isModalOpen} onClose={handleCloseModal} onAdd={handleAddItem} onUpdate={handleUpdateItem} onAddCategory={handleAddCategory} editingItem={editingItem} locations={locations} categories={categories} />
+      <AddItemModal 
+        isOpen={isModalOpen} 
+        onClose={handleCloseModal} 
+        onAdd={handleAddItem} 
+        onUpdate={handleUpdateItem} 
+        onAddCategory={handleAddCategory} 
+        editingItem={editingItem} 
+        locations={locations} 
+        categories={categories}
+        onQuickAdd={handleTriggerQuickAdd}
+        onConsume={handleTriggerConsume}
+      />
       <ManageMetadataModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} locations={locations} categories={categories} setLocations={setLocations} setCategories={setCategories} currentUser={currentUser} onUpdateUser={setCurrentUser} />
       
       {/* Quick Add Modal pre zadanie expirácie */}
