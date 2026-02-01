@@ -22,13 +22,12 @@ export const BarcodeScanner: React.FC<Props> = ({ onScan, onClose, isAnalyzing }
     let mounted = true;
 
     const startScanner = async () => {
-      // 1. Kontrola HTTPS (vyžadované pre kameru na mobiloch)
+      // 1. Kontrola HTTPS
       if (window.isSecureContext === false && window.location.hostname !== 'localhost') {
         if(mounted) setError("Kamera vyžaduje zabezpečené pripojenie (HTTPS).");
         return;
       }
 
-      // 2. Kontrola knižnice
       if (typeof Html5Qrcode === 'undefined') {
         if(mounted) setError("Chýba knižnica skenera. Skúste obnoviť stránku.");
         return;
@@ -38,9 +37,8 @@ export const BarcodeScanner: React.FC<Props> = ({ onScan, onClose, isAnalyzing }
         html5QrCode = new Html5Qrcode(containerId);
         scannerRef.current = html5QrCode;
 
-        // Základná konfigurácia skenovania
         const config = { 
-          fps: 15, // Vyššie FPS pre plynulejší obraz
+          fps: 15, 
           qrbox: (viewWidth: number, viewHeight: number) => ({ 
               width: Math.floor(Math.min(viewWidth, viewHeight) * 0.8), 
               height: Math.floor(Math.min(viewWidth, viewHeight) * 0.5) 
@@ -49,38 +47,23 @@ export const BarcodeScanner: React.FC<Props> = ({ onScan, onClose, isAnalyzing }
           experimentalFeatures: { useBarCodeDetectorIfSupported: true }
         };
 
-        // 3. Získanie zoznamu kamier (Najspoľahlivejšia metóda)
+        // Získanie kamier
         let cameras = [];
-        try {
-            cameras = await Html5Qrcode.getCameras();
-        } catch (e) {
-            throw new Error("Nemáte povolenie na kameru alebo nie je dostupná.");
-        }
+        try { cameras = await Html5Qrcode.getCameras(); } catch (e) { }
 
-        if (!cameras || cameras.length === 0) {
-            throw new Error("Nebola nájdená žiadna kamera.");
-        }
+        if (!cameras || cameras.length === 0) throw new Error("Nebola nájdená žiadna kamera.");
 
-        // 4. Inteligentný výber zadnej kamery
-        // Hľadáme kameru, ktorá má v názve 'back' alebo 'environment'
-        let cameraId = cameras[0].id; // Fallback na prvú
-        
-        // Zoradenie kamier - na mobiloch je často hlavná kamera posledná alebo má špecifický label
+        // Výber zadnej kamery
+        let cameraId = cameras[0].id;
         const backCamera = cameras.find((c: any) => 
             c.label.toLowerCase().includes('back') || 
             c.label.toLowerCase().includes('zadn') ||
             c.label.toLowerCase().includes('environment')
         );
+        if (backCamera) cameraId = backCamera.id;
+        else if (cameras.length > 1) cameraId = cameras[cameras.length - 1].id;
 
-        if (backCamera) {
-            cameraId = backCamera.id;
-        } else if (cameras.length > 1) {
-            // Ak nevieme identifikovať podľa mena, skúsime poslednú (často wide lens na mobiloch)
-            cameraId = cameras[cameras.length - 1].id;
-        }
-
-        // 5. Spustenie skenera s KONKRÉTNYM ID kamery
-        // Toto obchádza problémy s 'OverconstrainedError' pri použití generic constraints
+        // Štart
         await html5QrCode.start(
           cameraId, 
           config, 
@@ -93,71 +76,67 @@ export const BarcodeScanner: React.FC<Props> = ({ onScan, onClose, isAnalyzing }
           () => {} 
         );
         
-        // 6. Aplikovanie Zoomu a Blesku (Ak to hardvér podporuje)
-        // Toto robíme až PO úspešnom štarte, aby sme nezablokovali spustenie
-        try {
-          const videoTrack = html5QrCode.videoElement?.srcObject?.getVideoTracks()[0];
-          
-          if (videoTrack) {
-             const capabilities = videoTrack.getCapabilities();
-             const constraints: any = { advanced: [] };
-
-             if (capabilities.torch) {
-                 setHasTorch(true);
-             }
-
-             // Zoom pre skenovanie z diaľky
-             if (capabilities.zoom) {
-                 const currentZoom = videoTrack.getSettings().zoom || 1;
-                 const maxZoom = capabilities.zoom.max || 3;
-                 // Nastavíme jemný zoom (cca 1.8x), ktorý pomáha ostriť na čiarové kódy
-                 const targetZoom = Math.min(1.8, maxZoom);
-                 
-                 if (targetZoom > currentZoom) {
-                    constraints.advanced.push({ zoom: targetZoom });
-                 }
-             }
-             
-             // Autofocus
-             if (capabilities.focusMode && Array.isArray(capabilities.focusMode)) {
-                 if (capabilities.focusMode.includes('continuous')) {
-                     constraints.advanced.push({ focusMode: 'continuous' });
-                 }
-             }
-
-             if (constraints.advanced.length > 0) {
-                 await videoTrack.applyConstraints(constraints);
-             }
-          }
-        } catch (e) {
-            console.warn("Advanced camera features failed (ignoring):", e);
-        }
+        // --- DETEKCIA A NASTAVENIE BLESKU ---
+        // Musíme počkať chvíľu, kým sa video element naozaj inicializuje
+        setTimeout(() => {
+            if (!mounted) return;
+            const videoElement = document.querySelector(`#${containerId} video`) as HTMLVideoElement;
+            if (videoElement && videoElement.srcObject) {
+                const stream = videoElement.srcObject as MediaStream;
+                const videoTrack = stream.getVideoTracks()[0];
+                if (videoTrack) {
+                    const capabilities = videoTrack.getCapabilities() as any;
+                    if (capabilities.torch) {
+                        setHasTorch(true);
+                    }
+                    // Aplikovať zoom ak je dostupný
+                    if (capabilities.zoom) {
+                        const maxZoom = capabilities.zoom.max || 3;
+                        const targetZoom = Math.min(1.8, maxZoom);
+                        videoTrack.applyConstraints({ advanced: [{ zoom: targetZoom }] } as any).catch(() => {});
+                    }
+                    // Aplikovať focus
+                    if (capabilities.focusMode && Array.isArray(capabilities.focusMode) && capabilities.focusMode.includes('continuous')) {
+                        videoTrack.applyConstraints({ advanced: [{ focusMode: 'continuous' }] } as any).catch(() => {});
+                    }
+                }
+            }
+        }, 500);
 
       } catch (err: any) {
         console.error("Scanner Error:", err);
-        if(mounted) setError(err.message || "Nepodarilo sa spustiť kameru. Skontrolujte povolenia.");
+        if(mounted) setError(err.message || "Nepodarilo sa spustiť kameru.");
       }
     };
 
-    // Malé oneskorenie pre istotu, že DOM je ready
     const timer = setTimeout(startScanner, 100);
 
     return () => {
       clearTimeout(timer);
       mounted = false;
       if (html5QrCode && html5QrCode.isScanning) {
-        html5QrCode.stop().catch((e: any) => console.log("Stop failed", e));
+        html5QrCode.stop().catch(() => {});
       }
     };
   }, []); 
 
   const toggleTorch = async () => {
-    if (!scannerRef.current || !hasTorch) return;
-    const newState = !isTorchOn;
     try {
-      await scannerRef.current.applyVideoConstraints({ advanced: [{ torch: newState }] });
-      setIsTorchOn(newState);
-    } catch (e) {}
+        const videoElement = document.querySelector(`#${containerId} video`) as HTMLVideoElement;
+        if (videoElement && videoElement.srcObject) {
+            const stream = videoElement.srcObject as MediaStream;
+            const videoTrack = stream.getVideoTracks()[0];
+            if (videoTrack) {
+                const newState = !isTorchOn;
+                await videoTrack.applyConstraints({
+                    advanced: [{ torch: newState }]
+                } as any);
+                setIsTorchOn(newState);
+            }
+        }
+    } catch (e) {
+        console.error("Torch toggle failed", e);
+    }
   };
 
   const handleManualSearch = (e: React.FormEvent) => {
@@ -174,7 +153,13 @@ export const BarcodeScanner: React.FC<Props> = ({ onScan, onClose, isAnalyzing }
         <button onClick={onClose} className="px-5 py-2.5 bg-white/15 text-white text-xs font-black uppercase tracking-widest rounded-full backdrop-blur-md hover:bg-white/25 transition-colors">Zrušiť</button>
         {hasTorch && (
           <button onClick={toggleTorch} className={`w-12 h-12 rounded-full flex items-center justify-center backdrop-blur-md transition-colors ${isTorchOn ? 'bg-amber-400 text-black' : 'bg-white/15 text-white'}`}>
-            <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+            <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                {isTorchOn ? (
+                    <path d="M12 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 2.2a1 1 0 011.4 0l.7.7a1 1 0 11-1.4 1.4l-.7-.7a1 1 0 010-1.4zm-9.4 0a1 1 0 010 1.4l-.7.7a1 1 0 11-1.4-1.4l.7-.7a1 1 0 011.4 0zM12 7a5 5 0 100 10 5 5 0 000-10zm-5 5a5 5 0 1110 0 5 5 0 01-10 0zm5 9a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zm7.4-2.8a1 1 0 011.4 0l.7.7a1 1 0 11-1.4 1.4l-.7-.7a1 1 0 010-1.4zM4.6 18.2a1 1 0 010 1.4l-.7.7a1 1 0 11-1.4-1.4l.7-.7a1 1 0 011.4 0z"/>
+                ) : (
+                    <path d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                )}
+            </svg>
           </button>
         )}
       </div>
@@ -183,27 +168,18 @@ export const BarcodeScanner: React.FC<Props> = ({ onScan, onClose, isAnalyzing }
       <div className="relative flex-1 bg-black flex items-center justify-center overflow-hidden">
         <div id={containerId} className="w-full h-full object-cover"></div>
         
-        {/* Scanner Overlay - Kalorické tabuľky Style */}
         {!isAnalyzing && (
           <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center">
-            
-            {/* Rectangular Scan Frame - Wider for Barcodes */}
             <div className="relative w-[80vw] h-[40vw] max-w-[500px] max-h-[250px]">
-              
-              {/* Green corners */}
               <div className="absolute top-0 left-0 w-8 h-8 border-t-[4px] border-l-[4px] border-emerald-500 rounded-tl-lg z-20"></div>
               <div className="absolute top-0 right-0 w-8 h-8 border-t-[4px] border-r-[4px] border-emerald-500 rounded-tr-lg z-20"></div>
               <div className="absolute bottom-0 left-0 w-8 h-8 border-b-[4px] border-l-[4px] border-emerald-500 rounded-bl-lg z-20"></div>
               <div className="absolute bottom-0 right-0 w-8 h-8 border-b-[4px] border-r-[4px] border-emerald-500 rounded-br-lg z-20"></div>
-
-              {/* Red Laser Line */}
               <div className="absolute inset-x-4 top-1/2 h-[2px] bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)] z-10 animate-scan-laser"></div>
             </div>
-            
             <p className="mt-8 text-white/80 text-xs font-black uppercase tracking-widest bg-black/60 px-4 py-2 rounded-full backdrop-blur-sm shadow-lg">
                   Skenujte čiarový kód
             </p>
-
           </div>
         )}
 
@@ -211,7 +187,7 @@ export const BarcodeScanner: React.FC<Props> = ({ onScan, onClose, isAnalyzing }
           <div className="absolute inset-0 bg-slate-900/95 backdrop-blur-xl flex flex-col items-center justify-center text-center p-8 z-50">
             <div className="w-16 h-16 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin mb-6"></div>
             <p className="text-white font-black text-lg uppercase tracking-tighter">Spracovávam údaje...</p>
-            <p className="text-slate-400 text-xs mt-2 max-w-[200px]">Získavam značku, hmotnosť a názov...</p>
+            <p className="text-slate-400 text-xs mt-2 max-w-[200px]">Analyzujem EAN, názov a hmotnosť...</p>
           </div>
         )}
 
@@ -226,7 +202,6 @@ export const BarcodeScanner: React.FC<Props> = ({ onScan, onClose, isAnalyzing }
         )}
       </div>
 
-      {/* Manual Input (Fixed Bottom) */}
       <div className="bg-slate-950 p-6 pb-10 border-t border-white/5 safe-bottom z-50">
         <form onSubmit={handleManualSearch} className="flex flex-col gap-3 max-w-sm mx-auto">
           <input 
