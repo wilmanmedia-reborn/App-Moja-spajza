@@ -131,15 +131,7 @@ const App: React.FC = () => {
   const handleUpdateItem = (id: string, updates: Partial<FoodItem>) => {
     setItems(prev => prev.map(item => {
       if (item.id !== id) return item;
-      
-      const updatedItem = { ...item, ...updates, lastUpdated: Date.now() };
-      
-      // Ak aktualizácia neobsahuje batches, ale mení currentQuantity priamo (napr. cez modal),
-      // musíme prepočítať batches. Toto je zložité, preto preferujeme prácu s batches.
-      // Pre jednoduchosť v Modale pri priamej zmene čísla: resetujeme batche na jeden "zlúčený".
-      // Alebo lepšie: AddItemModal bude teraz manažovať batches.
-      
-      return updatedItem;
+      return { ...item, ...updates, lastUpdated: Date.now() };
     }));
   };
 
@@ -148,11 +140,18 @@ const App: React.FC = () => {
     setQuickAddModalItem(item);
   };
 
-  const confirmQuickAdd = (expiryDate: string | undefined) => {
+  const confirmQuickAdd = (expiryDate: string | undefined, specificQuantity: number) => {
     if (!quickAddModalItem) return;
     
-    // Pre jednotky ako g/ml pridáme "obsah balenia", pre KS pridáme 1.
-    const qtyToAdd = quickAddModalItem.unit === Unit.KS ? 1 : (quickAddModalItem.quantityPerPack || 1);
+    // Použijeme špecifickú hmotnosť z modalu.
+    // Ak by náhodou user nič nezadal (0), použijeme fallback na 1 ak je to KS.
+    const qtyToAdd = specificQuantity > 0 ? specificQuantity : (quickAddModalItem.unit === Unit.KS ? 1 : (quickAddModalItem.quantityPerPack || 0));
+
+    // Ak pridávame 0 (napr. 0g), ignorujeme
+    if (qtyToAdd <= 0) {
+        setQuickAddModalItem(null);
+        return;
+    }
 
     const newBatch: Batch = {
       id: Math.random().toString(36).substr(2, 9),
@@ -187,18 +186,30 @@ const App: React.FC = () => {
 
   // --- LOGIKA PRE CONSUME (-1) ---
   
-  // 1. Trigger the modal
   const handleTriggerConsume = (item: FoodItem) => {
     if (item.currentQuantity <= 0) return;
     setConsumeModalItem(item);
   };
 
-  // 2. Confirm logic (specific batch)
   const confirmConsume = (batchId: string | null) => {
     if (!consumeModalItem) return;
 
-    const packSize = consumeModalItem.unit === Unit.KS ? 1 : (consumeModalItem.quantityPerPack || 1);
-    const qtyToRemove = packSize;
+    // Defaultne odoberáme "veľkosť balenia", ale musíme zistiť z akej šarže.
+    // Ak máme batchId, pozrieme sa na veľkosť TEJ šarže, ak je to možné, alebo odoberáme packSize.
+    // Pre zjednodušenie odoberáme "štandardný pack size" alebo celú šaržu ak je menšia?
+    // User logic: "Odobral som 1 ks".
+    
+    // Logika: Ak má user šarže s rôznymi váhami (300g a 500g), odobratie 1ks je nejednoznačné bez výberu šarže.
+    // Tu zjednodušíme: Ak vyberie šaržu, odstránime ju celú? Nie, to by bolo "zjedol som všetko".
+    // Zatiaľ odoberieme globálny quantityPerPack (alebo 1ks).
+    // ALEBO: Ak šarža má 'quantity', čo reprezentuje váhu (napr 500), a odoberáme 1ks, tak odoberáme celých 500.
+    // Áno, Batch.quantity v tomto systéme reprezentuje "obsah v gramoch/ks tejto konkrétnej dávky".
+    
+    // Takže ak kliknem na šaržu "500g", znamená to, že som ju minul celú?
+    // V kontexte "trvanlivé potraviny" (konzerva, kečup) - áno, zvyčajne otvorím a miniem (alebo začnem míňať) celú fľašu.
+    // Aplikácia eviduje "Sklad". Otvorená vec je stále na sklade, ale "načatá".
+    // Ale tlačidlo "Odobrať" zvyčajne znamená "Vyhodiť obal / Minul som".
+    // Takže odoberieme CELÚ hodnotu danej šarže.
 
     setItems(prev => prev.map(item => {
         if (item.id !== consumeModalItem.id) return item;
@@ -207,60 +218,51 @@ const App: React.FC = () => {
         let newTotalQty = item.currentQuantity;
 
         if (batchId) {
-            // Remove from specific batch
-            newBatches = newBatches.map(b => {
-                if (b.id === batchId) {
-                    const newQty = Math.max(0, b.quantity - qtyToRemove);
-                    return { ...b, quantity: newQty };
-                }
-                return b;
-            }).filter(b => b.quantity > 0); // Remove empty batches
-            
-            newTotalQty = Math.max(0, newTotalQty - qtyToRemove);
-
-        } else {
-            // Legacy/Unknown batch handling (no batch ID selected)
-            // Just subtract from total. If there are batches, maybe subtract from the first one?
-            // If the user selected "Neznáma šarža" (null), it implies we just drop the quantity.
-            // But we should try to keep batches in sync if they exist.
-            // Strategy: Subtract from total. Then try to align batches (FIFO fallback) 
-            // OR just strictly allow selecting existing batches if they exist.
-            
-            // If the user selects "Legacy/Unknown" (null id), and we have batches, 
-            // it means the data is inconsistent or mixed. 
-            // Simple approach: Subtract from total. If batches sum > new total, remove from oldest batches (FIFO) to sync.
-            
-            newTotalQty = Math.max(0, item.currentQuantity - qtyToRemove);
-            
-            // Sync batches to match new total (FIFO style reduction)
-            let currentSum = newBatches.reduce((acc, b) => acc + b.quantity, 0);
-            let toRemoveFromBatches = currentSum - newTotalQty;
-            
-            if (toRemoveFromBatches > 0) {
-                 const sortedBatches = newBatches.sort((a, b) => {
-                    if (!a.expiryDate) return 1;
-                    if (!b.expiryDate) return -1;
-                    return new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime();
-                });
-                
-                const adjustedBatches: Batch[] = [];
-                for (const b of sortedBatches) {
-                    if (toRemoveFromBatches <= 0) {
-                        adjustedBatches.push(b);
-                        continue;
-                    }
-                    if (b.quantity > toRemoveFromBatches) {
-                        adjustedBatches.push({ ...b, quantity: b.quantity - toRemoveFromBatches });
-                        toRemoveFromBatches = 0;
-                    } else {
-                        toRemoveFromBatches -= b.quantity;
-                    }
-                }
-                newBatches = adjustedBatches;
+            // Nájdi šaržu
+            const batchIndex = newBatches.findIndex(b => b.id === batchId);
+            if (batchIndex !== -1) {
+                const batchQty = newBatches[batchIndex].quantity;
+                // Odstránime celú šaržu (predpoklad: spotreboval som tento kus/balenie)
+                newBatches.splice(batchIndex, 1);
+                newTotalQty = Math.max(0, newTotalQty - batchQty);
             }
+        } else {
+            // Legacy/Neznáma šarža - odoberieme "štandardné" množstvo
+            const qtyToRemove = item.unit === Unit.KS ? 1 : (item.quantityPerPack || 1);
+            newTotalQty = Math.max(0, newTotalQty - qtyToRemove);
+            
+            // FIFO fallback pre batche
+            let remainingToRemove = qtyToRemove;
+            // Zoradíme od najstarších
+            newBatches.sort((a, b) => {
+                 if (!a.expiryDate) return 1;
+                 if (!b.expiryDate) return -1;
+                 return new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime();
+            });
+            
+            // Odoberáme z batchov postupne
+            const keptBatches = [];
+            for (const b of newBatches) {
+                if (remainingToRemove <= 0) {
+                    keptBatches.push(b);
+                    continue;
+                }
+                
+                if (b.quantity <= remainingToRemove) {
+                    // Celý batch zmizne
+                    remainingToRemove -= b.quantity;
+                } else {
+                    // Batch sa zmenší (napr. z 1000g ostane 500g - divné pre "kusy", ale ok pre sypané)
+                    // Pre "ks" jednotky (napr. konzervy) toto nastane len ak batch.quantity > 1 (čo by nemalo byť ak batch=1kus)
+                    // Ak batch=1kus (500g) a chceme odobrať 500g -> batch zmizne.
+                    keptBatches.push({ ...b, quantity: b.quantity - remainingToRemove });
+                    remainingToRemove = 0;
+                }
+            }
+            newBatches = keptBatches;
         }
 
-        // Recalculate global expiry
+        // Recalculate expiry
         const sortedBatches = [...newBatches].sort((a, b) => {
             if (!a.expiryDate) return 1;
             if (!b.expiryDate) return -1;

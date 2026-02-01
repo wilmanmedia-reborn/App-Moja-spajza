@@ -149,8 +149,7 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
     
     // Ak editujeme, prepočítame currentQuantity z batches
     let current = isKs ? formData.currentPacks : formData.currentPacks * formData.quantityPerPack;
-    let finalBatches = tempBatches;
-
+    
     if (editingItem) {
         // Pri editácii sa spoliehame na tempBatches
         current = tempBatches.reduce((acc, b) => acc + b.quantity, 0);
@@ -371,9 +370,16 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
                   {/* Stepper pre MÁM (Current Packs) */}
                   <StepperInput 
                     label={editingItem ? 'Mám celkom (auto)' : 'Mám (ks)'}
-                    value={editingItem ? tempBatches.reduce((acc, b) => acc + b.quantity, 0) : formData.currentPacks}
+                    value={editingItem ? tempBatches.reduce((acc, b) => acc + (formData.unit === Unit.KS ? b.quantity : 1), 0) : formData.currentPacks}
+                    // Poznámka: pre KS sa počíta kus = quantity. Pre g/ml sa počíta kus = 1 batch.
+                    // Ale počkať, batch.quantity je hmotnosť v g. Takže počet kusov je počet batchov.
+                    // Oprava logiky zobrazenia:
+                    // Ak unit=KS, batch.quantity=1. Count = sum(quantity).
+                    // Ak unit=G, batch.quantity=500. Count = batches.length.
+                    // Zjednodušenie pre UI: Zobrazujeme len počet riadkov v batch list ak nie sme KS?
+                    // Nie, radšej necháme pôvodnú logiku, ktorá bola orientovaná na "kusy".
                     onChange={(val) => !editingItem && setFormData({...formData, currentPacks: val})}
-                    disabled={!!editingItem} // Pri editácii sa počíta automaticky, nedá sa meniť priamo tu
+                    disabled={!!editingItem} 
                     min={0}
                   />
 
@@ -401,7 +407,8 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
                                     </p>
                                 </div>
                                 <div className="text-sm font-black text-slate-900 dark:text-white">
-                                    {batch.quantity}ks
+                                    {/* Tu zobrazíme skutočnú hodnotu batchu a jednotku položky */}
+                                    {batch.quantity}{formData.unit}
                                 </div>
                                 <button 
                                     type="button"
