@@ -45,7 +45,9 @@ export const ConsumeItemModal: React.FC<Props> = ({ isOpen, onClose, onConfirm, 
                         {index === 0 && <span className="text-[8px] bg-emerald-200 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-200 px-2 py-0.5 rounded font-bold uppercase">Odporúčané (najstaršie)</span>}
                     </div>
                     <div className="text-right">
-                        <span className="block text-xl font-black text-slate-900 dark:text-white">{batch.quantity} ks</span>
+                        <span className="block text-xl font-black text-slate-900 dark:text-white">
+                            {batch.quantity} {item.unit}
+                        </span>
                     </div>
                 </button>
             ))}
@@ -62,7 +64,9 @@ export const ConsumeItemModal: React.FC<Props> = ({ isOpen, onClose, onConfirm, 
                         <span className="text-[8px] text-slate-400 uppercase">Pôvodné zásoby</span>
                     </div>
                     <div className="text-right">
-                         <span className="block text-xl font-black text-slate-900 dark:text-white">{item.currentQuantity} ks</span>
+                         <span className="block text-xl font-black text-slate-900 dark:text-white">
+                            {item.currentQuantity} {item.unit}
+                         </span>
                     </div>
                 </button>
             )}

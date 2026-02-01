@@ -449,22 +449,24 @@ export const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onAdd, onUpdate
 
               {/* Expirácia a Vlastná výroba */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-stretch">
-                <div className="space-y-2 min-w-0">
-                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Spotrebujte do</label>
-                    <div className="relative">
-                        <input 
-                            type="date" 
-                            value={formData.expiryDate}
-                            onChange={e => setFormData({...formData, expiryDate: e.target.value})}
-                            /* Logic: py-[19px] creates ~60px height. 
-                               If empty, 'empty-date' class triggers CSS placeholder and text-transparent hides native UI */
-                            className={`block w-full py-[19px] px-4 bg-slate-100 dark:bg-slate-800 rounded-2xl outline-none font-bold text-[13px] border-none text-center appearance-none ${formData.expiryDate ? 'text-slate-900 dark:text-white' : 'text-transparent empty-date'}`}
-                            style={{ WebkitAppearance: 'none' }}
-                        />
+                {!editingItem && (
+                    <div className="space-y-2 min-w-0">
+                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Spotrebujte do</label>
+                        <div className="relative">
+                            <input 
+                                type="date" 
+                                value={formData.expiryDate}
+                                onChange={e => setFormData({...formData, expiryDate: e.target.value})}
+                                /* Logic: py-[19px] creates ~60px height. 
+                                If empty, 'empty-date' class triggers CSS placeholder and text-transparent hides native UI */
+                                className={`block w-full py-[19px] px-4 bg-slate-100 dark:bg-slate-800 rounded-2xl outline-none font-bold text-[13px] border-none text-center appearance-none ${formData.expiryDate ? 'text-slate-900 dark:text-white' : 'text-transparent empty-date'}`}
+                                style={{ WebkitAppearance: 'none' }}
+                            />
+                        </div>
                     </div>
-                </div>
+                )}
                 
-                <div className="space-y-2">
+                <div className={`space-y-2 ${editingItem ? 'col-span-1 sm:col-span-2' : ''}`}>
                   <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Pôvod produktu</label>
                   <div className="flex h-[60px] bg-slate-100 dark:bg-slate-800 rounded-2xl overflow-hidden p-1">
                      <button
