@@ -22,14 +22,12 @@ export const BarcodeScanner: React.FC<Props> = ({ onScan, onClose, isAnalyzing }
     let mounted = true;
 
     const startScanner = async () => {
-      // 1. Kontrola HTTPS
       if (window.isSecureContext === false && window.location.hostname !== 'localhost') {
-        if(mounted) setError("Kamera vyžaduje zabezpečené pripojenie (HTTPS).");
+        if(mounted) setError("Kamera vyžaduje HTTPS.");
         return;
       }
-
       if (typeof Html5Qrcode === 'undefined') {
-        if(mounted) setError("Chýba knižnica skenera. Skúste obnoviť stránku.");
+        if(mounted) setError("Chýba knižnica. Obnovte stránku.");
         return;
       }
 
@@ -47,13 +45,12 @@ export const BarcodeScanner: React.FC<Props> = ({ onScan, onClose, isAnalyzing }
           experimentalFeatures: { useBarCodeDetectorIfSupported: true }
         };
 
-        // Získanie kamier
+        // Získanie a výber kamery
         let cameras = [];
         try { cameras = await Html5Qrcode.getCameras(); } catch (e) { }
 
-        if (!cameras || cameras.length === 0) throw new Error("Nebola nájdená žiadna kamera.");
+        if (!cameras || cameras.length === 0) throw new Error("Kamera nedostupná.");
 
-        // Výber zadnej kamery
         let cameraId = cameras[0].id;
         const backCamera = cameras.find((c: any) => 
             c.label.toLowerCase().includes('back') || 
@@ -63,7 +60,6 @@ export const BarcodeScanner: React.FC<Props> = ({ onScan, onClose, isAnalyzing }
         if (backCamera) cameraId = backCamera.id;
         else if (cameras.length > 1) cameraId = cameras[cameras.length - 1].id;
 
-        // Štart
         await html5QrCode.start(
           cameraId, 
           config, 
@@ -75,37 +71,44 @@ export const BarcodeScanner: React.FC<Props> = ({ onScan, onClose, isAnalyzing }
           }, 
           () => {} 
         );
-        
-        // --- DETEKCIA A NASTAVENIE BLESKU ---
-        // Musíme počkať chvíľu, kým sa video element naozaj inicializuje
-        setTimeout(() => {
-            if (!mounted) return;
+
+        // --- DETEKCIA BLESKU (TORCH) ---
+        // Skúšame opakovane, lebo video track nemusí byť ready hneď
+        let attempts = 0;
+        const checkTorch = () => {
+            if (!mounted || attempts > 10) return;
             const videoElement = document.querySelector(`#${containerId} video`) as HTMLVideoElement;
+            
             if (videoElement && videoElement.srcObject) {
                 const stream = videoElement.srcObject as MediaStream;
                 const videoTrack = stream.getVideoTracks()[0];
                 if (videoTrack) {
+                    // Type casting na 'any' aby sme sa dostali k capabilities
                     const capabilities = videoTrack.getCapabilities() as any;
                     if (capabilities.torch) {
                         setHasTorch(true);
-                    }
-                    // Aplikovať zoom ak je dostupný
-                    if (capabilities.zoom) {
-                        const maxZoom = capabilities.zoom.max || 3;
-                        const targetZoom = Math.min(1.8, maxZoom);
-                        videoTrack.applyConstraints({ advanced: [{ zoom: targetZoom }] } as any).catch(() => {});
-                    }
-                    // Aplikovať focus
-                    if (capabilities.focusMode && Array.isArray(capabilities.focusMode) && capabilities.focusMode.includes('continuous')) {
-                        videoTrack.applyConstraints({ advanced: [{ focusMode: 'continuous' }] } as any).catch(() => {});
+                        // Aplikujeme aj zoom/focus keď už sme tu
+                        const constraints: any = { advanced: [] };
+                        if (capabilities.zoom) {
+                             constraints.advanced.push({ zoom: Math.min(1.8, capabilities.zoom.max || 3) });
+                        }
+                        if (capabilities.focusMode && capabilities.focusMode.includes('continuous')) {
+                            constraints.advanced.push({ focusMode: 'continuous' });
+                        }
+                        if (constraints.advanced.length > 0) {
+                            videoTrack.applyConstraints(constraints).catch(() => {});
+                        }
+                        return; // Našli sme, končíme check
                     }
                 }
             }
-        }, 500);
+            attempts++;
+            setTimeout(checkTorch, 500);
+        };
+        checkTorch();
 
       } catch (err: any) {
-        console.error("Scanner Error:", err);
-        if(mounted) setError(err.message || "Nepodarilo sa spustiť kameru.");
+        if(mounted) setError("Nepodarilo sa spustiť kameru.");
       }
     };
 
@@ -135,7 +138,7 @@ export const BarcodeScanner: React.FC<Props> = ({ onScan, onClose, isAnalyzing }
             }
         }
     } catch (e) {
-        console.error("Torch toggle failed", e);
+        console.error("Torch error", e);
     }
   };
 
@@ -149,16 +152,19 @@ export const BarcodeScanner: React.FC<Props> = ({ onScan, onClose, isAnalyzing }
   return (
     <div className="fixed inset-0 z-[100] bg-black flex flex-col font-sans">
       {/* Top Controls */}
-      <div className="safe-top p-4 flex justify-between items-center bg-black/40 backdrop-blur-md absolute top-0 inset-x-0 z-50">
-        <button onClick={onClose} className="px-5 py-2.5 bg-white/15 text-white text-xs font-black uppercase tracking-widest rounded-full backdrop-blur-md hover:bg-white/25 transition-colors">Zrušiť</button>
+      <div className="safe-top p-4 flex justify-between items-start bg-gradient-to-b from-black/80 to-transparent absolute top-0 inset-x-0 z-50 pointer-events-none">
+        <button onClick={onClose} className="pointer-events-auto px-5 py-2.5 bg-white/15 text-white text-xs font-black uppercase tracking-widest rounded-full backdrop-blur-md border border-white/10">
+            Zrušiť
+        </button>
+
         {hasTorch && (
-          <button onClick={toggleTorch} className={`w-12 h-12 rounded-full flex items-center justify-center backdrop-blur-md transition-colors ${isTorchOn ? 'bg-amber-400 text-black' : 'bg-white/15 text-white'}`}>
-            <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-                {isTorchOn ? (
-                    <path d="M12 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 2.2a1 1 0 011.4 0l.7.7a1 1 0 11-1.4 1.4l-.7-.7a1 1 0 010-1.4zm-9.4 0a1 1 0 010 1.4l-.7.7a1 1 0 11-1.4-1.4l.7-.7a1 1 0 011.4 0zM12 7a5 5 0 100 10 5 5 0 000-10zm-5 5a5 5 0 1110 0 5 5 0 01-10 0zm5 9a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zm7.4-2.8a1 1 0 011.4 0l.7.7a1 1 0 11-1.4 1.4l-.7-.7a1 1 0 010-1.4zM4.6 18.2a1 1 0 010 1.4l-.7.7a1 1 0 11-1.4-1.4l.7-.7a1 1 0 011.4 0z"/>
-                ) : (
-                    <path d="M13 10V3L4 14h7v7l9-11h-7z"/>
-                )}
+          <button 
+            onClick={toggleTorch} 
+            className={`pointer-events-auto w-12 h-12 rounded-full flex items-center justify-center backdrop-blur-md transition-all border ${isTorchOn ? 'bg-amber-400 border-amber-400 text-black shadow-[0_0_15px_rgba(251,191,36,0.5)]' : 'bg-black/40 border-white/20 text-white'}`}
+          >
+             {/* Ikona Blesku */}
+            <svg className="w-6 h-6" fill={isTorchOn ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
             </svg>
           </button>
         )}
@@ -186,8 +192,7 @@ export const BarcodeScanner: React.FC<Props> = ({ onScan, onClose, isAnalyzing }
         {isAnalyzing && (
           <div className="absolute inset-0 bg-slate-900/95 backdrop-blur-xl flex flex-col items-center justify-center text-center p-8 z-50">
             <div className="w-16 h-16 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin mb-6"></div>
-            <p className="text-white font-black text-lg uppercase tracking-tighter">Spracovávam údaje...</p>
-            <p className="text-slate-400 text-xs mt-2 max-w-[200px]">Analyzujem EAN, názov a hmotnosť...</p>
+            <p className="text-white font-black text-lg uppercase tracking-tighter">Spracovávam...</p>
           </div>
         )}
 
