@@ -112,24 +112,32 @@ const App: React.FC = () => {
     
     let initialBatches: Batch[] = [];
 
-    // AK IDE O KUSY (napr. domáce lečo):
-    // Namiesto 1 šarže s quantity=4 vytvoríme 4 šarže s quantity=1.
-    // To umožní neskôr manažovať každý pohár zvlášť.
+    // Logika rozdelenia na samostatné šarže (balenia)
+    let countToAdd = 1;
+    let quantityPerBatch = newItem.currentQuantity;
+
     if (newItem.unit === Unit.KS) {
-        for (let i = 0; i < newItem.currentQuantity; i++) {
-            initialBatches.push({
-                id: Math.random().toString(36).substr(2, 9) + i, // Unique ID fix
-                quantity: 1,
-                expiryDate: newItem.expiryDate,
-                addedDate: Date.now()
-            });
+        // PRE KUSY: Ak pridávam 5 ks, chcem 5 samostatných riadkov po 1 ks
+        countToAdd = Math.max(1, newItem.currentQuantity);
+        quantityPerBatch = 1;
+    } else if (newItem.quantityPerPack && newItem.quantityPerPack > 0) {
+        // PRE GRAMY/ML: Ak pridávam 10 balení horčice (10 x 350g = 3500g),
+        // a celková hmotnosť je deliteľná veľkosťou balenia,
+        // rozdelíme to na 10 samostatných batchov po 350g.
+        const packs = newItem.currentQuantity / newItem.quantityPerPack;
+        
+        // Overíme, či ide o celé násobky balení (s toleranciou pre float math)
+        if (Math.abs(Math.round(packs) - packs) < 0.001 && packs >= 1) {
+            countToAdd = Math.round(packs);
+            quantityPerBatch = newItem.quantityPerPack;
         }
-    } else {
-        // PRE GRAMY/LITRE (napr. 500g múky):
-        // Vytvoríme jednu šaržu s celkovou hmotnosťou.
+    }
+
+    // Vygenerujeme samostatné batche
+    for (let i = 0; i < countToAdd; i++) {
         initialBatches.push({
-            id: Math.random().toString(36).substr(2, 9),
-            quantity: newItem.currentQuantity,
+            id: Math.random().toString(36).substr(2, 9) + i,
+            quantity: quantityPerBatch,
             expiryDate: newItem.expiryDate,
             addedDate: Date.now()
         });
@@ -188,6 +196,9 @@ const App: React.FC = () => {
         }
     } else {
         // PRE OSTATNÉ (g, ml): Vytvoríme jednu dávku s celkovou hmotnosťou
+        // Tu zatiaľ necháme logiku "jeden batch", pretože QuickAdd zvyčajne slúži na doplnenie jednej konkrétnej veci.
+        // Ak by sme chceli podporiť "kúpil som 5x350g" cez quick add, museli by sme to riešiť podobne ako v handleAddItem,
+        // ale modal QuickAddCurrently vracia len celkovú quantity.
         newBatches.push({
           id: Math.random().toString(36).substr(2, 9),
           quantity: qtyToAdd,
