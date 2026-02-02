@@ -91,6 +91,51 @@ const App: React.FC = () => {
   // State pre Consume Modal
   const [consumeModalItem, setConsumeModalItem] = useState<FoodItem | null>(null);
 
+  // LOGIKA PRE SCROLL KATEGÓRIÍ
+  const categoryScrollRef = useRef<HTMLDivElement>(null);
+  const [scrollFlags, setScrollFlags] = useState({ left: false, right: true });
+
+  const checkScroll = () => {
+    if (categoryScrollRef.current) {
+      const { scrollLeft, scrollWidth, clientWidth } = categoryScrollRef.current;
+      setScrollFlags({
+        left: scrollLeft > 10, // malá tolerancia
+        right: scrollLeft < scrollWidth - clientWidth - 10
+      });
+    }
+  };
+
+  useEffect(() => {
+    checkScroll(); // Init check
+    window.addEventListener('resize', checkScroll);
+    return () => window.removeEventListener('resize', checkScroll);
+  }, [categories]); // Re-check when categories change
+
+  const handleCategoryClick = (catId: string, e: React.MouseEvent<HTMLButtonElement>) => {
+    setSelectedCategory(catId);
+    
+    // Centrovanie elementu
+    const container = categoryScrollRef.current;
+    const target = e.currentTarget;
+    
+    if (container && target) {
+      const containerWidth = container.clientWidth;
+      const targetWidth = target.offsetWidth;
+      const targetLeft = target.offsetLeft;
+      
+      // Výpočet pozície pre vycentrovanie
+      // targetLeft je relatívne k parentovi vďaka `relative` na kontajneri (alebo offsetParent)
+      // Odpočítame padding kontajnera ak treba, ale zvyčajne offsetLeft stačí
+      const scrollPos = targetLeft - (containerWidth / 2) + (targetWidth / 2);
+      
+      container.scrollTo({
+        left: scrollPos,
+        behavior: 'smooth'
+      });
+    }
+  };
+
+
   useEffect(() => {
     localStorage.setItem('pantry_theme', theme);
     const root = window.document.documentElement;
@@ -518,16 +563,20 @@ const App: React.FC = () => {
 
             {/* Category Filter - Horizontal Scroll */}
             <div className="relative mb-6 -mx-4 sm:mx-0 group">
-              {/* Left Fade */}
-              <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-slate-50 dark:from-slate-950 to-transparent z-10 pointer-events-none"></div>
+              {/* Left Fade - Conditional */}
+              <div className={`absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-slate-50 dark:from-slate-950 to-transparent z-10 pointer-events-none transition-opacity duration-300 ${scrollFlags.left ? 'opacity-100' : 'opacity-0'}`}></div>
               
-              {/* Right Fade */}
-              <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-slate-50 dark:from-slate-950 to-transparent z-10 pointer-events-none"></div>
+              {/* Right Fade - Conditional */}
+              <div className={`absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-slate-50 dark:from-slate-950 to-transparent z-10 pointer-events-none transition-opacity duration-300 ${scrollFlags.right ? 'opacity-100' : 'opacity-0'}`}></div>
 
-              <div className="overflow-x-auto no-scrollbar flex items-center gap-3 px-4 sm:px-0 pb-2 select-none">
+              <div 
+                ref={categoryScrollRef}
+                onScroll={checkScroll}
+                className="overflow-x-auto no-scrollbar flex items-center gap-3 px-4 sm:px-0 py-4 select-none snap-x"
+              >
                 <button 
-                  onClick={() => setSelectedCategory('all')}
-                  className={`shrink-0 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all active:scale-95 flex items-center gap-2 ${
+                  onClick={(e) => handleCategoryClick('all', e)}
+                  className={`shrink-0 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all active:scale-95 flex items-center gap-2 snap-center ${
                     selectedCategory === 'all' 
                       ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20 ring-2 ring-emerald-600 border-transparent' 
                       : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800'
@@ -540,8 +589,8 @@ const App: React.FC = () => {
                 {categories.map(cat => (
                   <button
                     key={cat.id}
-                    onClick={() => setSelectedCategory(cat.id)}
-                    className={`shrink-0 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all active:scale-95 flex items-center gap-2 ${
+                    onClick={(e) => handleCategoryClick(cat.id, e)}
+                    className={`shrink-0 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all active:scale-95 flex items-center gap-2 snap-center ${
                       selectedCategory === cat.id 
                         ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20 ring-2 ring-emerald-600 border-transparent' 
                         : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800'
