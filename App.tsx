@@ -387,7 +387,15 @@ const App: React.FC = () => {
 
   const filteredItems = useMemo(() => {
     return householdItems.filter(item => {
-      const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase());
+      // Normalizácia pre vyhľadávanie bez diakritiky
+      const normalizeText = (text: string) => {
+          return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+      };
+
+      const normalizedSearch = normalizeText(searchTerm);
+      const normalizedName = normalizeText(item.name);
+      
+      const matchesSearch = normalizedName.includes(normalizedSearch);
       
       let matchesStatus = true;
       if (filterMode === 'expiring') {
@@ -479,7 +487,13 @@ const App: React.FC = () => {
                 <button onClick={() => setViewMode('grid')} className={`flex-1 sm:flex-none px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest ${viewMode === 'grid' ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-md' : 'text-slate-400'}`}>Mriežka</button>
               </div>
               <div className="relative w-full sm:w-64">
-                <input type="text" placeholder="Hľadať..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full px-4 py-3 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 text-sm font-bold" />
+                <input 
+                  type="text" 
+                  placeholder="Hľadať..." 
+                  value={searchTerm} 
+                  onChange={e => setSearchTerm(e.target.value)} 
+                  className="w-full px-4 py-3 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 text-sm font-bold text-slate-900 dark:text-white"
+                />
               </div>
             </div>
 
