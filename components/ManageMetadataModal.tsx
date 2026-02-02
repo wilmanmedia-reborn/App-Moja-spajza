@@ -124,19 +124,19 @@ export const ManageMetadataModal: React.FC<Props> = ({
         <div className="p-4 bg-slate-100 dark:bg-slate-800/50 flex gap-2 overflow-x-auto no-scrollbar">
           <button 
             onClick={() => setActiveSubTab('locations')}
-            className={`flex-1 min-w-[100px] py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${activeSubTab === 'locations' ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-950 shadow-lg' : 'text-slate-500 dark:text-slate-400'}`}
+            className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeSubTab === 'locations' ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-950 shadow-lg' : 'text-slate-500 dark:text-slate-400'}`}
           >
             Lokality
           </button>
           <button 
             onClick={() => setActiveSubTab('categories')}
-            className={`flex-1 min-w-[100px] py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${activeSubTab === 'categories' ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-950 shadow-lg' : 'text-slate-500 dark:text-slate-400'}`}
+            className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeSubTab === 'categories' ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-950 shadow-lg' : 'text-slate-500 dark:text-slate-400'}`}
           >
             Kategórie
           </button>
           <button 
             onClick={() => setActiveSubTab('household')}
-            className={`flex-1 min-w-[100px] py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${activeSubTab === 'household' ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20' : 'text-slate-500 dark:text-slate-400'}`}
+            className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeSubTab === 'household' ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20' : 'text-slate-500 dark:text-slate-400'}`}
           >
             Synchronizácia
           </button>
@@ -208,7 +208,7 @@ export const ManageMetadataModal: React.FC<Props> = ({
                     value={newName}
                     onChange={e => setNewName(e.target.value)}
                     placeholder="Názov..."
-                    className="flex-1 px-5 py-3 bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-none rounded-2xl font-bold outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="flex-1 min-w-0 px-5 py-3 bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-none rounded-2xl font-bold outline-none focus:ring-2 focus:ring-emerald-500"
                   />
                 </div>
                 <button 
