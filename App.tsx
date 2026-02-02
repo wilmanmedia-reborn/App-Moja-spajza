@@ -33,6 +33,9 @@ const App: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState<'inventory' | 'shopping'>('inventory');
   
+  // State pre sledovanie rozbalenej položky v zozname (akordeón)
+  const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
+
   const [locations, setLocations] = useState<Location[]>(() => {
     const saved = localStorage.getItem('pantry_locations');
     return saved ? JSON.parse(saved) : INITIAL_LOCATIONS;
@@ -511,6 +514,8 @@ const App: React.FC = () => {
                     <InventoryItemRow 
                       key={item.id} 
                       item={item} 
+                      isExpanded={expandedItemId === item.id} // Posielame informáciu, či má byť tento riadok rozbalený
+                      onToggleExpand={() => setExpandedItemId(prev => prev === item.id ? null : item.id)} // Funkcia na prepínanie rozbalenia
                       location={locations.find(l => l.id === item.locationId)} 
                       category={categories.find(c => c.id === item.category)} 
                       onUpdate={(id, updates) => {

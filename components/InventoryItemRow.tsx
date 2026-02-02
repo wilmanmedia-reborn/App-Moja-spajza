@@ -6,6 +6,8 @@ interface Props {
   item: FoodItem;
   location?: Location;
   category?: Category;
+  isExpanded: boolean; // Nový prop: Riadené rodičom
+  onToggleExpand: () => void; // Nový prop: Funkcia na prepnutie stavu v rodičovi
   onUpdate: (id: string, updates: Partial<FoodItem>) => void;
   onDelete: (id: string) => void;
   onEdit: (item: FoodItem) => void;
@@ -14,13 +16,13 @@ interface Props {
   onConsume: (item: FoodItem) => void;
 }
 
-export const InventoryItemRow: React.FC<Props> = ({ item, location, category, onDelete, onEdit, onAddToShoppingList, onQuickAdd, onConsume }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
+export const InventoryItemRow: React.FC<Props> = ({ item, location, category, isExpanded, onToggleExpand, onDelete, onEdit, onAddToShoppingList, onQuickAdd, onConsume }) => {
+  // Lokálny state isExpanded odstránený - teraz je riadený cez props
   const rowRef = useRef<HTMLDivElement>(null);
   
   const percentage = (item.currentQuantity / item.totalQuantity) * 100;
   
-  // OPRAVA: Počet balení sa počíta ako počet šarží
+  // Počet balení sa počíta ako počet šarží
   const currentPacks = item.unit === Unit.KS 
     ? item.currentQuantity 
     : (item.batches?.length || 0);
@@ -39,7 +41,7 @@ export const InventoryItemRow: React.FC<Props> = ({ item, location, category, on
     ? Math.ceil((new Date(item.expiryDate).getTime() - Date.now()) / (86400000))
     : null;
 
-  // Efekt pre automatické scrollovanie po rozbalení
+  // Efekt pre automatické scrollovanie po rozbalení (stále funguje, lebo sleduje prop isExpanded)
   useEffect(() => {
     if (isExpanded && rowRef.current) {
       // Počkáme 300ms kým prebehne animácia "slide-in" (aby výpočet pozície bol presný)
@@ -62,7 +64,7 @@ export const InventoryItemRow: React.FC<Props> = ({ item, location, category, on
       {/* Main Row Content - Clickable to expand */}
       <div 
         className="flex items-center p-4 sm:p-5 gap-3 sm:gap-4 cursor-pointer"
-        onClick={() => setIsExpanded(!isExpanded)}
+        onClick={onToggleExpand} // Voláme funkciu z rodiča
       >
         {/* Category Icon with status ring */}
         <div className={`hidden sm:flex w-12 h-12 rounded-2xl items-center justify-center text-xl shrink-0 relative p-1 transition-colors ${isRunningLow ? 'bg-amber-500/10' : 'bg-slate-100 dark:bg-slate-800'}`}>
