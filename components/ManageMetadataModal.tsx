@@ -124,19 +124,19 @@ export const ManageMetadataModal: React.FC<Props> = ({
         <div className="p-4 bg-slate-100 dark:bg-slate-800/50 flex gap-2 overflow-x-auto no-scrollbar">
           <button 
             onClick={() => setActiveSubTab('locations')}
-            className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeSubTab === 'locations' ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-950 shadow-lg' : 'text-slate-500 dark:text-slate-400'}`}
+            className={`shrink-0 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeSubTab === 'locations' ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-950 shadow-lg' : 'text-slate-500 dark:text-slate-400'}`}
           >
             Lokality
           </button>
           <button 
             onClick={() => setActiveSubTab('categories')}
-            className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeSubTab === 'categories' ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-950 shadow-lg' : 'text-slate-500 dark:text-slate-400'}`}
+            className={`shrink-0 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeSubTab === 'categories' ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-950 shadow-lg' : 'text-slate-500 dark:text-slate-400'}`}
           >
             Kategórie
           </button>
           <button 
             onClick={() => setActiveSubTab('household')}
-            className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeSubTab === 'household' ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20' : 'text-slate-500 dark:text-slate-400'}`}
+            className={`shrink-0 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeSubTab === 'household' ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20' : 'text-slate-500 dark:text-slate-400'}`}
           >
             Synchronizácia
           </button>
