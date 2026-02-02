@@ -154,7 +154,7 @@ export const ManageMetadataModal: React.FC<Props> = ({
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
-      <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800 flex flex-col max-h-[90vh]">
+      <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800 flex flex-col h-full sm:h-[85vh]">
         
         {/* Header */}
         <div className="px-8 py-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-800/50 shrink-0">
@@ -183,11 +183,10 @@ export const ManageMetadataModal: React.FC<Props> = ({
            </div>
         </div>
 
-        {/* Content Area */}
-        <div className="p-0 overflow-y-auto no-scrollbar flex-1 relative">
-          <div className="p-8">
+        {/* Content Area - Scrollable */}
+        <div className="flex-1 overflow-y-auto no-scrollbar p-6 relative">
             {activeSubTab === 'household' ? (
-              <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+              <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300 pb-4">
                 <div className="p-6 bg-slate-50 dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700">
                   <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Záloha a prenos dát</h4>
                   <div className="grid grid-cols-1 gap-3">
@@ -218,8 +217,8 @@ export const ManageMetadataModal: React.FC<Props> = ({
                 </div>
               </div>
             ) : (
-              <div className="animate-in fade-in slide-in-from-left-4 duration-300">
-                <div className="space-y-3 mb-8">
+              <div className="animate-in fade-in slide-in-from-left-4 duration-300 pb-2">
+                <div className="space-y-3">
                   {(activeSubTab === 'locations' ? locations : categories).map(item => (
                     <div key={item.id} className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 group">
                       <div className="flex items-center gap-3">
@@ -235,36 +234,40 @@ export const ManageMetadataModal: React.FC<Props> = ({
                     </div>
                   ))}
                 </div>
-
-                <form onSubmit={handleAdd} className="p-6 bg-emerald-50 dark:bg-emerald-950/20 rounded-3xl border-2 border-emerald-100 dark:border-emerald-900/50 sticky bottom-0">
-                  <h4 className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest mb-4">Pridať novú {activeSubTab === 'locations' ? 'lokalitu' : 'kategóriu'}</h4>
-                  <div className="flex gap-3">
-                    <input 
-                      type="text" 
-                      value={newIcon}
-                      onChange={e => setNewIcon(e.target.value)}
-                      placeholder="🏠"
-                      className="w-16 px-3 py-3 bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-none rounded-2xl text-center font-bold outline-none focus:ring-2 focus:ring-emerald-500 shadow-sm"
-                    />
-                    <input 
-                      type="text" 
-                      value={newName}
-                      onChange={e => setNewName(e.target.value)}
-                      placeholder="Názov..."
-                      className="flex-1 min-w-0 px-5 py-3 bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-none rounded-2xl font-bold outline-none focus:ring-2 focus:ring-emerald-500 shadow-sm"
-                    />
-                  </div>
-                  <button 
-                    type="submit"
-                    className="w-full mt-4 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-2xl transition-all active:scale-95 uppercase text-[10px] tracking-widest shadow-lg shadow-emerald-600/20"
-                  >
-                    Potvrdiť
-                  </button>
-                </form>
               </div>
             )}
-          </div>
         </div>
+
+        {/* Footer Form - Fixed at Bottom for Locations & Categories */}
+        {activeSubTab !== 'household' && (
+          <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0 z-10">
+            <form onSubmit={handleAdd} className="p-4 bg-emerald-50 dark:bg-emerald-950/20 rounded-3xl border-2 border-emerald-100 dark:border-emerald-900/50">
+                <h4 className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest mb-3">Pridať novú {activeSubTab === 'locations' ? 'lokalitu' : 'kategóriu'}</h4>
+                <div className="flex gap-3">
+                  <input 
+                    type="text" 
+                    value={newIcon}
+                    onChange={e => setNewIcon(e.target.value)}
+                    placeholder="🏠"
+                    className="w-14 px-2 py-3 bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-none rounded-2xl text-center font-bold outline-none focus:ring-2 focus:ring-emerald-500 shadow-sm"
+                  />
+                  <input 
+                    type="text" 
+                    value={newName}
+                    onChange={e => setNewName(e.target.value)}
+                    placeholder="Názov..."
+                    className="flex-1 min-w-0 px-5 py-3 bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-none rounded-2xl font-bold outline-none focus:ring-2 focus:ring-emerald-500 shadow-sm"
+                  />
+                </div>
+                <button 
+                  type="submit"
+                  className="w-full mt-3 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-2xl transition-all active:scale-95 uppercase text-[10px] tracking-widest shadow-lg shadow-emerald-600/20"
+                >
+                  Potvrdiť
+                </button>
+            </form>
+          </div>
+        )}
       </div>
     </div>
   );
