@@ -110,18 +110,35 @@ const App: React.FC = () => {
   const handleAddItem = (newItem: Omit<FoodItem, 'id' | 'lastUpdated' | 'householdId'>) => {
     if (!currentUser) return;
     
-    // Vytvorenie iniciálneho batchu
-    const initialBatch: Batch = {
-      id: Math.random().toString(36).substr(2, 9),
-      quantity: newItem.currentQuantity,
-      expiryDate: newItem.expiryDate,
-      addedDate: Date.now()
-    };
+    let initialBatches: Batch[] = [];
+
+    // AK IDE O KUSY (napr. domáce lečo):
+    // Namiesto 1 šarže s quantity=4 vytvoríme 4 šarže s quantity=1.
+    // To umožní neskôr manažovať každý pohár zvlášť.
+    if (newItem.unit === Unit.KS) {
+        for (let i = 0; i < newItem.currentQuantity; i++) {
+            initialBatches.push({
+                id: Math.random().toString(36).substr(2, 9) + i, // Unique ID fix
+                quantity: 1,
+                expiryDate: newItem.expiryDate,
+                addedDate: Date.now()
+            });
+        }
+    } else {
+        // PRE GRAMY/LITRE (napr. 500g múky):
+        // Vytvoríme jednu šaržu s celkovou hmotnosťou.
+        initialBatches.push({
+            id: Math.random().toString(36).substr(2, 9),
+            quantity: newItem.currentQuantity,
+            expiryDate: newItem.expiryDate,
+            addedDate: Date.now()
+        });
+    }
 
     const item: FoodItem = {
       ...newItem,
       id: Math.random().toString(36).substr(2, 9),
-      batches: [initialBatch],
+      batches: initialBatches,
       lastUpdated: Date.now(),
       householdId: currentUser.householdId
     };
