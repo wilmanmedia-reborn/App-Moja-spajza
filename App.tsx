@@ -265,6 +265,7 @@ const App: React.FC = () => {
     setItems(prev => prev.map(item => item.id === updatedItem.id ? updatedItem : item));
 
     // 4. Synchronizácia pre AddItemModal: Ak práve editujeme túto položku, pošleme tam novú verziu
+    // TOTO JE KĽÚČOVÉ PRE OPRAVU CHYBY, KTORÚ POŽADOVAL UŽÍVATEĽ
     if (editingItem && editingItem.id === updatedItem.id) {
         setEditingItem(updatedItem);
     }
