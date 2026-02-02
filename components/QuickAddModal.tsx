@@ -35,6 +35,7 @@ export const QuickAddModal: React.FC<Props> = ({ isOpen, onClose, onConfirm, ite
 
   // Krok pre tlačidlá +/- (pre gramy väčší skok, pre litre/ks menší)
   const step = item.unit === Unit.G || item.unit === Unit.ML ? 10 : 1;
+  const isKs = item.unit === Unit.KS;
 
   return (
     <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 sm:p-6" onClick={(e) => e.target === e.currentTarget && onClose()}>
@@ -49,7 +50,7 @@ export const QuickAddModal: React.FC<Props> = ({ isOpen, onClose, onConfirm, ite
           {/* Editovateľná hmotnosť / obsah balenia */}
           <div className="w-full space-y-2">
             <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">
-                Obsah tohto balenia ({item.unit})
+                {isKs ? 'Počet kusov na pridanie' : `Obsah tohto balenia (${item.unit})`}
             </label>
             <div className="flex items-center h-[60px] bg-slate-100 dark:bg-slate-800 rounded-2xl p-1 gap-1 border border-slate-200 dark:border-slate-700">
                 <button 
@@ -75,9 +76,11 @@ export const QuickAddModal: React.FC<Props> = ({ isOpen, onClose, onConfirm, ite
                     +
                 </button>
             </div>
-            <p className="text-[9px] text-slate-400 text-center">
-                Ak je toto balenie väčšie/menšie ako zvyčajne, upravte hodnotu.
-            </p>
+            {!isKs && (
+                <p className="text-[9px] text-slate-400 text-center">
+                    Ak je toto balenie väčšie/menšie ako zvyčajne, upravte hodnotu.
+                </p>
+            )}
           </div>
 
           {/* Expirácia */}

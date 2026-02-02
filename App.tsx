@@ -152,7 +152,7 @@ const App: React.FC = () => {
     }));
   };
 
-  // --- LOGIKA PRE QUICK ADD (+1) ---
+  // --- LOGIKA PRE QUICK ADD (+1 / Doplniť zásobu) ---
   const handleTriggerQuickAdd = (item: FoodItem) => {
     setQuickAddModalItem(item);
   };
@@ -172,17 +172,32 @@ const App: React.FC = () => {
     const currentItem = items.find(i => i.id === quickAddModalItem.id);
     if (!currentItem) return;
 
-    const newBatch: Batch = {
-      id: Math.random().toString(36).substr(2, 9),
-      quantity: qtyToAdd,
-      expiryDate: expiryDate,
-      addedDate: Date.now()
-    };
+    // 2. Vytvoríme nové batches (Rozdielna logika pre KS a pre G/ML)
+    const newBatches = [...(currentItem.batches || [])];
 
-    // 2. Vypočítame novú verziu položky
-    const updatedBatches = [...(currentItem.batches || []), newBatch];
-    
-    const sortedBatches = [...updatedBatches].sort((a, b) => {
+    if (quickAddModalItem.unit === Unit.KS) {
+        // PRE KS: Vytvoríme N samostatných dávok po 1ks
+        // Príklad: Pridávam 3ks Leča -> Vzniknú 3 riadky po 1ks
+        for (let i = 0; i < qtyToAdd; i++) {
+            newBatches.push({
+              id: Math.random().toString(36).substr(2, 9) + i,
+              quantity: 1, // Vždy 1 kus
+              expiryDate: expiryDate,
+              addedDate: Date.now()
+            });
+        }
+    } else {
+        // PRE OSTATNÉ (g, ml): Vytvoríme jednu dávku s celkovou hmotnosťou
+        newBatches.push({
+          id: Math.random().toString(36).substr(2, 9),
+          quantity: qtyToAdd,
+          expiryDate: expiryDate,
+          addedDate: Date.now()
+        });
+    }
+
+    // 3. Zoradíme a updatneme item
+    const sortedBatches = [...newBatches].sort((a, b) => {
         if (!a.expiryDate) return 1;
         if (!b.expiryDate) return -1;
         return new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime();
@@ -192,14 +207,14 @@ const App: React.FC = () => {
     const updatedItem: FoodItem = {
       ...currentItem,
       currentQuantity: currentItem.currentQuantity + qtyToAdd,
-      batches: updatedBatches,
+      batches: sortedBatches,
       expiryDate: nearestExpiry || currentItem.expiryDate 
     };
 
-    // 3. Aktualizujeme stav položiek
+    // 4. Aktualizujeme stav položiek
     setItems(prev => prev.map(i => i.id === updatedItem.id ? updatedItem : i));
 
-    // 4. Ak sme v režime editácie tej istej položky, aktualizujeme aj editingItem
+    // 5. Ak sme v režime editácie tej istej položky, aktualizujeme aj editingItem
     if (editingItem && editingItem.id === updatedItem.id) {
         setEditingItem(updatedItem);
     }
