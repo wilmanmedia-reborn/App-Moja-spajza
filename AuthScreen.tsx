@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { User } from '../types';
 import { auth, db, isFirebaseConfigured } from '../firebase';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { INITIAL_LOCATIONS, INITIAL_CATEGORIES } from '../constants';
 
 interface Props {

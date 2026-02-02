@@ -11,15 +11,14 @@ export interface User {
   id: string;
   name: string;
   email: string;
-  password?: string;
   householdId: string;
+  // Password neriešime v TS, rieši ho Firebase Auth
 }
 
-export interface Household {
-  id: string;
-  name: string;
+export interface HouseholdData {
   ownerId: string;
-  members: string[]; // IDs of users
+  locations: Location[];
+  categories: Category[];
 }
 
 export interface Location {
@@ -48,7 +47,7 @@ export interface FoodItem {
   batches?: Batch[]; // New field for managing multiple expiration dates
   isHomemade: boolean;
   lastUpdated: number;
-  householdId: string;
+  householdId: string; // Pre query filtrovanie
 }
 
 export interface ShoppingItem {

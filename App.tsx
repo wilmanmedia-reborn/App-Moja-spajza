@@ -9,17 +9,15 @@ import { AuthScreen } from './components/AuthScreen';
 import { QuickAddModal } from './components/QuickAddModal';
 import { ConsumeItemModal } from './components/ConsumeItemModal';
 import { FoodItem, Location, Category, Unit, ShoppingItem, User, Batch } from './types';
-import { INITIAL_LOCATIONS, INITIAL_CATEGORIES, MOCK_ITEMS } from './constants';
+import { INITIAL_LOCATIONS, INITIAL_CATEGORIES } from './constants';
 import { getRecipeSuggestions } from './geminiService';
+import { auth, db } from './firebase';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { collection, query, where, onSnapshot, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 
 const App: React.FC = () => {
-  // NATVRDO NASTAVENÝ TESTER PRE PRESKOČENIE PRIHLASOVANIA
-  const [currentUser, setCurrentUser] = useState<User | null>({
-    id: 'test-user',
-    name: 'Tester',
-    email: 'test@test.sk',
-    householdId: 'DOMOV-123'
-  });
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
     const saved = localStorage.getItem('pantry_theme');
@@ -36,47 +34,10 @@ const App: React.FC = () => {
   // State pre sledovanie rozbalenej položky v zozname (akordeón)
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
 
-  const [locations, setLocations] = useState<Location[]>(() => {
-    const saved = localStorage.getItem('pantry_locations');
-    return saved ? JSON.parse(saved) : INITIAL_LOCATIONS;
-  });
-
-  const [categories, setCategories] = useState<Category[]>(() => {
-    const saved = localStorage.getItem('pantry_categories');
-    return saved ? JSON.parse(saved) : INITIAL_CATEGORIES;
-  });
-
-  const [items, setItems] = useState<FoodItem[]>(() => {
-    const saved = localStorage.getItem('pantry_items');
-    let parsedItems = saved ? JSON.parse(saved) : MOCK_ITEMS;
-    
-    // MIGRÁCIA: Ak položka nemá batches, vytvoríme defaultný batch zo súčasných dát
-    parsedItems = parsedItems.map((item: FoodItem) => {
-      if (!item.batches || item.batches.length === 0) {
-        if (item.currentQuantity > 0) {
-          return {
-            ...item,
-            batches: [{
-              id: Math.random().toString(36).substr(2, 9),
-              quantity: item.currentQuantity,
-              expiryDate: item.expiryDate,
-              addedDate: Date.now()
-            }]
-          };
-        } else {
-          return { ...item, batches: [] };
-        }
-      }
-      return item;
-    });
-    
-    return parsedItems;
-  });
-
-  const [shoppingList, setShoppingList] = useState<ShoppingItem[]>(() => {
-    const saved = localStorage.getItem('pantry_shopping');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [locations, setLocations] = useState<Location[]>(INITIAL_LOCATIONS);
+  const [categories, setCategories] = useState<Category[]>(INITIAL_CATEGORIES);
+  const [items, setItems] = useState<FoodItem[]>([]);
+  const [shoppingList, setShoppingList] = useState<ShoppingItem[]>([]);
   
   const [searchTerm, setSearchTerm] = useState('');
   const [filterMode, setFilterMode] = useState<'all' | 'expiring' | 'low' | string>('all');
@@ -86,9 +47,7 @@ const App: React.FC = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [aiSuggestions, setAiSuggestions] = useState<string | null>(null);
   
-  // State pre Quick Add Modal
   const [quickAddModalItem, setQuickAddModalItem] = useState<FoodItem | null>(null);
-  // State pre Consume Modal
   const [consumeModalItem, setConsumeModalItem] = useState<FoodItem | null>(null);
 
   // LOGIKA PRE SCROLL KATEGÓRIÍ
@@ -99,42 +58,30 @@ const App: React.FC = () => {
     if (categoryScrollRef.current) {
       const { scrollLeft, scrollWidth, clientWidth } = categoryScrollRef.current;
       setScrollFlags({
-        left: scrollLeft > 10, // malá tolerancia
+        left: scrollLeft > 10,
         right: scrollLeft < scrollWidth - clientWidth - 10
       });
     }
   };
 
   useEffect(() => {
-    checkScroll(); // Init check
+    checkScroll();
     window.addEventListener('resize', checkScroll);
     return () => window.removeEventListener('resize', checkScroll);
-  }, [categories]); // Re-check when categories change
+  }, [categories]);
 
   const handleCategoryClick = (catId: string, e: React.MouseEvent<HTMLButtonElement>) => {
     setSelectedCategory(catId);
-    
-    // Centrovanie elementu
     const container = categoryScrollRef.current;
     const target = e.currentTarget;
-    
     if (container && target) {
       const containerWidth = container.clientWidth;
       const targetWidth = target.offsetWidth;
       const targetLeft = target.offsetLeft;
-      
-      // Výpočet pozície pre vycentrovanie
-      // targetLeft je relatívne k parentovi vďaka `relative` na kontajneri (alebo offsetParent)
-      // Odpočítame padding kontajnera ak treba, ale zvyčajne offsetLeft stačí
       const scrollPos = targetLeft - (containerWidth / 2) + (targetWidth / 2);
-      
-      container.scrollTo({
-        left: scrollPos,
-        behavior: 'smooth'
-      });
+      container.scrollTo({ left: scrollPos, behavior: 'smooth' });
     }
   };
-
 
   useEffect(() => {
     localStorage.setItem('pantry_theme', theme);
@@ -144,44 +91,93 @@ const App: React.FC = () => {
   }, [theme]);
 
   useEffect(() => {
-    localStorage.setItem('pantry_items', JSON.stringify(items));
-    localStorage.setItem('pantry_shopping', JSON.stringify(shoppingList));
-    localStorage.setItem('pantry_locations', JSON.stringify(locations));
-    localStorage.setItem('pantry_categories', JSON.stringify(categories));
     localStorage.setItem('pantry_view_mode', viewMode);
-  }, [items, shoppingList, locations, categories, viewMode]);
+  }, [viewMode]);
 
-  const handleLogin = (user: User) => {
-    setCurrentUser(user);
-  };
+  // --- FIREBASE SYNC LOGIC ---
 
-  const handleAddItem = (newItem: Omit<FoodItem, 'id' | 'lastUpdated' | 'householdId'>) => {
+  // 1. Auth Listener
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+        if (firebaseUser) {
+            // Získame dáta užívateľa (hlavne householdId)
+            const userDocRef = doc(db, "users", firebaseUser.uid);
+            const userSnap = await getDoc(userDocRef);
+            
+            if (userSnap.exists()) {
+                const userData = userSnap.data() as User;
+                setCurrentUser(userData);
+            } else {
+                // Fallback ak užívateľ je v Auth ale nie v DB (nemalo by sa stať pri registrácii)
+                console.error("User data not found in Firestore");
+                signOut(auth);
+            }
+        } else {
+            setCurrentUser(null);
+            setItems([]);
+            setShoppingList([]);
+        }
+        setLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // 2. Household Data Listener (Items, Shopping, Metadata)
+  useEffect(() => {
+    if (!currentUser?.householdId) return;
+
+    // A. Listen to Household Metadata (Locations, Categories)
+    const householdRef = doc(db, "households", currentUser.householdId);
+    const unsubHousehold = onSnapshot(householdRef, (docSnap) => {
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            if (data.locations) setLocations(data.locations);
+            if (data.categories) setCategories(data.categories);
+        }
+    });
+
+    // B. Listen to Items
+    const itemsQuery = query(collection(householdRef, "items"));
+    const unsubItems = onSnapshot(itemsQuery, (snapshot) => {
+        const loadedItems = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as FoodItem));
+        setItems(loadedItems);
+    });
+
+    // C. Listen to Shopping List
+    const shoppingQuery = query(collection(householdRef, "shopping"));
+    const unsubShopping = onSnapshot(shoppingQuery, (snapshot) => {
+        const loadedShopping = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ShoppingItem));
+        setShoppingList(loadedShopping);
+    });
+
+    return () => {
+        unsubHousehold();
+        unsubItems();
+        unsubShopping();
+    };
+  }, [currentUser?.householdId]);
+
+
+  // --- CRUD OPERÁCIE CEZ FIREBASE ---
+
+  const handleAddItem = async (newItem: Omit<FoodItem, 'id' | 'lastUpdated' | 'householdId'>) => {
     if (!currentUser) return;
     
     let initialBatches: Batch[] = [];
-
-    // Logika rozdelenia na samostatné šarže (balenia)
     let countToAdd = 1;
     let quantityPerBatch = newItem.currentQuantity;
 
     if (newItem.unit === Unit.KS) {
-        // PRE KUSY: Ak pridávam 5 ks, chcem 5 samostatných riadkov po 1 ks
         countToAdd = Math.max(1, newItem.currentQuantity);
         quantityPerBatch = 1;
     } else if (newItem.quantityPerPack && newItem.quantityPerPack > 0) {
-        // PRE GRAMY/ML: Ak pridávam 10 balení horčice (10 x 350g = 3500g),
-        // a celková hmotnosť je deliteľná veľkosťou balenia,
-        // rozdelíme to na 10 samostatných batchov po 350g.
         const packs = newItem.currentQuantity / newItem.quantityPerPack;
-        
-        // Overíme, či ide o celé násobky balení (s toleranciou pre float math)
         if (Math.abs(Math.round(packs) - packs) < 0.001 && packs >= 1) {
             countToAdd = Math.round(packs);
             quantityPerBatch = newItem.quantityPerPack;
         }
     }
 
-    // Vygenerujeme samostatné batche
     for (let i = 0; i < countToAdd; i++) {
         initialBatches.push({
             id: Math.random().toString(36).substr(2, 9) + i,
@@ -191,62 +187,58 @@ const App: React.FC = () => {
         });
     }
 
-    const item: FoodItem = {
+    const itemPayload = {
       ...newItem,
-      id: Math.random().toString(36).substr(2, 9),
       batches: initialBatches,
       lastUpdated: Date.now(),
       householdId: currentUser.householdId
     };
-    setItems(prev => [item, ...prev]);
+
+    // Add to Firestore
+    await addDoc(collection(db, "households", currentUser.householdId, "items"), itemPayload);
   };
 
-  const handleUpdateItem = (id: string, updates: Partial<FoodItem>) => {
-    setItems(prev => prev.map(item => {
-      if (item.id !== id) return item;
-      return { ...item, ...updates, lastUpdated: Date.now() };
-    }));
+  const handleUpdateItem = async (id: string, updates: Partial<FoodItem>) => {
+    if (!currentUser) return;
+    const itemRef = doc(db, "households", currentUser.householdId, "items", id);
+    await updateDoc(itemRef, { ...updates, lastUpdated: Date.now() });
   };
 
-  // --- LOGIKA PRE QUICK ADD (+1 / Doplniť zásobu) ---
-  const handleTriggerQuickAdd = (item: FoodItem) => {
-    setQuickAddModalItem(item);
-  };
-
-  const confirmQuickAdd = (expiryDate: string | undefined, specificQuantity: number) => {
-    if (!quickAddModalItem) return;
-    
-    // Použijeme špecifickú hmotnosť z modalu.
-    const qtyToAdd = specificQuantity > 0 ? specificQuantity : (quickAddModalItem.unit === Unit.KS ? 1 : (quickAddModalItem.quantityPerPack || 0));
-
-    if (qtyToAdd <= 0) {
-        setQuickAddModalItem(null);
-        return;
+  const handleDeleteItem = async (id: string) => {
+    if (!currentUser) return;
+    if (confirm('Naozaj chcete odstrániť túto položku?')) {
+        await deleteDoc(doc(db, "households", currentUser.householdId, "items", id));
     }
+  };
 
-    // 1. Nájdeme aktuálnu položku (aby sme pracovali s fresh dátami)
+  // --- Quick Add / Consume Logic (Updated for Firebase) ---
+
+  const handleTriggerQuickAdd = (item: FoodItem) => setQuickAddModalItem(item);
+
+  const confirmQuickAdd = async (expiryDate: string | undefined, specificQuantity: number) => {
+    if (!quickAddModalItem || !currentUser) return;
+    
+    const qtyToAdd = specificQuantity > 0 ? specificQuantity : (quickAddModalItem.unit === Unit.KS ? 1 : (quickAddModalItem.quantityPerPack || 0));
+    if (qtyToAdd <= 0) { setQuickAddModalItem(null); return; }
+
+    // Fetch fresh item data? Snapshot listener already does this, but for atomicity we use data from closure
+    // Best practice: use runTransaction if consistency is critical, but direct update is fine for this app size.
+    
     const currentItem = items.find(i => i.id === quickAddModalItem.id);
     if (!currentItem) return;
 
-    // 2. Vytvoríme nové batches (Rozdielna logika pre KS a pre G/ML)
     const newBatches = [...(currentItem.batches || [])];
 
     if (quickAddModalItem.unit === Unit.KS) {
-        // PRE KS: Vytvoríme N samostatných dávok po 1ks
-        // Príklad: Pridávam 3ks Leča -> Vzniknú 3 riadky po 1ks
         for (let i = 0; i < qtyToAdd; i++) {
             newBatches.push({
               id: Math.random().toString(36).substr(2, 9) + i,
-              quantity: 1, // Vždy 1 kus
+              quantity: 1,
               expiryDate: expiryDate,
               addedDate: Date.now()
             });
         }
     } else {
-        // PRE OSTATNÉ (g, ml): Vytvoríme jednu dávku s celkovou hmotnosťou
-        // Tu zatiaľ necháme logiku "jeden batch", pretože QuickAdd zvyčajne slúži na doplnenie jednej konkrétnej veci.
-        // Ak by sme chceli podporiť "kúpil som 5x350g" cez quick add, museli by sme to riešiť podobne ako v handleAddItem,
-        // ale modal QuickAddCurrently vracia len celkovú quantity.
         newBatches.push({
           id: Math.random().toString(36).substr(2, 9),
           quantity: qtyToAdd,
@@ -255,7 +247,6 @@ const App: React.FC = () => {
         });
     }
 
-    // 3. Zoradíme a updatneme item
     const sortedBatches = [...newBatches].sort((a, b) => {
         if (!a.expiryDate) return 1;
         if (!b.expiryDate) return -1;
@@ -263,35 +254,23 @@ const App: React.FC = () => {
     });
     const nearestExpiry = sortedBatches.find(b => b.expiryDate)?.expiryDate;
 
-    const updatedItem: FoodItem = {
-      ...currentItem,
-      currentQuantity: currentItem.currentQuantity + qtyToAdd,
-      batches: sortedBatches,
-      expiryDate: nearestExpiry || currentItem.expiryDate 
-    };
-
-    // 4. Aktualizujeme stav položiek
-    setItems(prev => prev.map(i => i.id === updatedItem.id ? updatedItem : i));
-
-    // 5. Ak sme v režime editácie tej istej položky, aktualizujeme aj editingItem
-    if (editingItem && editingItem.id === updatedItem.id) {
-        setEditingItem(updatedItem);
-    }
+    await handleUpdateItem(currentItem.id, {
+        currentQuantity: currentItem.currentQuantity + qtyToAdd,
+        batches: sortedBatches,
+        expiryDate: nearestExpiry || currentItem.expiryDate
+    });
 
     setQuickAddModalItem(null);
   };
 
-  // --- LOGIKA PRE CONSUME (-1) ---
-  
   const handleTriggerConsume = (item: FoodItem) => {
     if (item.currentQuantity <= 0) return;
     setConsumeModalItem(item);
   };
 
-  const confirmConsume = (batchId: string | null) => {
-    if (!consumeModalItem) return;
-
-    // 1. Nájdeme aktuálnu položku (fresh dáta)
+  const confirmConsume = async (batchId: string | null) => {
+    if (!consumeModalItem || !currentUser) return;
+    
     const currentItem = items.find(i => i.id === consumeModalItem.id);
     if (!currentItem) return;
 
@@ -299,7 +278,6 @@ const App: React.FC = () => {
     let newTotalQty = currentItem.currentQuantity;
 
     if (batchId) {
-        // Odstránenie konkrétneho batchu
         const batchIndex = newBatches.findIndex(b => b.id === batchId);
         if (batchIndex !== -1) {
             const batchQty = newBatches[batchIndex].quantity;
@@ -307,13 +285,10 @@ const App: React.FC = () => {
             newTotalQty = Math.max(0, newTotalQty - batchQty);
         }
     } else {
-        // Legacy/Fallback logika (ak by prišlo null)
         const qtyToRemove = currentItem.unit === Unit.KS ? 1 : (currentItem.quantityPerPack || 1);
         newTotalQty = Math.max(0, newTotalQty - qtyToRemove);
-        
         let remainingToRemove = qtyToRemove;
         
-        // Zoradíme najprv podľa expirácie, aby sme odoberali zo starých
         newBatches.sort((a, b) => {
              if (!a.expiryDate) return 1;
              if (!b.expiryDate) return -1;
@@ -322,11 +297,7 @@ const App: React.FC = () => {
         
         const keptBatches = [];
         for (const b of newBatches) {
-            if (remainingToRemove <= 0) {
-                keptBatches.push(b);
-                continue;
-            }
-            
+            if (remainingToRemove <= 0) { keptBatches.push(b); continue; }
             if (b.quantity <= remainingToRemove) {
                 remainingToRemove -= b.quantity;
             } else {
@@ -344,30 +315,59 @@ const App: React.FC = () => {
     });
     const nearestExpiry = sortedBatches.find(b => b.expiryDate)?.expiryDate;
 
-    // 2. Vytvoríme aktualizovaný objekt položky
-    const updatedItem: FoodItem = {
-        ...currentItem,
+    await handleUpdateItem(currentItem.id, {
         currentQuantity: newTotalQty,
         batches: sortedBatches,
         expiryDate: nearestExpiry || currentItem.expiryDate
-    };
-
-    // 3. Aktualizujeme hlavný zoznam
-    setItems(prev => prev.map(item => item.id === updatedItem.id ? updatedItem : item));
-
-    // 4. Synchronizácia pre AddItemModal: Ak práve editujeme túto položku, pošleme tam novú verziu
-    // TOTO JE KĽÚČOVÉ PRE OPRAVU CHYBY, KTORÚ POŽADOVAL UŽÍVATEĽ
-    if (editingItem && editingItem.id === updatedItem.id) {
-        setEditingItem(updatedItem);
-    }
+    });
 
     setConsumeModalItem(null);
   };
 
-  const handleDeleteItem = (id: string) => {
-    if (confirm('Naozaj chcete odstrániť túto položku?')) {
-      setItems(prev => prev.filter(item => item.id !== id));
+  // --- Shopping List Logic ---
+
+  const handleAddToShoppingList = async (item: FoodItem) => {
+    if (!currentUser) return;
+    const exists = shoppingList.find(si => si.sourceItemId === item.id);
+    if (!exists) {
+        await addDoc(collection(db, "households", currentUser.householdId, "shopping"), {
+            name: item.name,
+            quantity: 1,
+            unit: item.unit,
+            completed: false,
+            sourceItemId: item.id,
+            householdId: currentUser.householdId
+        });
     }
+  };
+
+  const handleShoppingListUpdate = async (id: string, updates: Partial<ShoppingItem>) => {
+      if (!currentUser) return;
+      await updateDoc(doc(db, "households", currentUser.householdId, "shopping", id), updates);
+  };
+
+  const handleShoppingListDelete = async (id: string) => {
+      if (!currentUser) return;
+      await deleteDoc(doc(db, "households", currentUser.householdId, "shopping", id));
+  };
+
+  const handleShoppingListAdd = async (name: string) => {
+      if (!currentUser) return;
+      await addDoc(collection(db, "households", currentUser.householdId, "shopping"), {
+            name,
+            quantity: 1,
+            unit: Unit.KS,
+            completed: false,
+            householdId: currentUser.householdId
+      });
+  };
+
+  const handleShoppingListClear = async () => {
+      if (!currentUser) return;
+      const completed = shoppingList.filter(i => i.completed);
+      for (const item of completed) {
+          await deleteDoc(doc(db, "households", currentUser.householdId, "shopping", item.id));
+      }
   };
 
   const handleEditItemTrigger = (item: FoodItem) => {
@@ -381,62 +381,40 @@ const App: React.FC = () => {
   };
 
   const handleAiAdvice = async () => {
-    if (householdItems.length === 0) {
-      setAiSuggestions("Zatiaľ nemáte žiadne zásoby na analýzu.");
-      return;
-    }
-    setAiSuggestions("AI analyzuje vaše zásoby...");
+    if (items.length === 0) return;
+    setAiSuggestions("Generujem nápady na recepty...");
     try {
-      const suggestions = await getRecipeSuggestions(householdItems);
-      setAiSuggestions(suggestions);
-    } catch (error) {
-      setAiSuggestions("Nepodarilo sa získať nápady na recepty.");
+      const result = await getRecipeSuggestions(items);
+      setAiSuggestions(result || "Nepodarilo sa získať recepty.");
+    } catch (e) {
+      setAiSuggestions("Chyba pri generovaní receptov.");
     }
   };
 
-  const handleAddToShoppingList = (item: FoodItem) => {
-    if (!currentUser) return;
-    const exists = shoppingList.find(si => si.sourceItemId === item.id);
-    if (!exists) {
-      setShoppingList(prev => [...prev, {
-        id: Math.random().toString(36).substr(2, 9),
-        name: item.name,
-        quantity: 1,
-        unit: item.unit,
-        completed: false,
-        sourceItemId: item.id,
-        householdId: currentUser.householdId
-      }]);
-    }
-  };
-
+  // --- Metadata Logic ---
   const handleAddCategory = (categoryName: string): string => {
+    // Toto je len pre UI placeholder, reálny update robí AddItemModal volaním props, 
+    // ale pre istotu implementujeme save do DB v rámci onAddCategory
     const existing = categories.find(c => c.name.toLowerCase() === categoryName.toLowerCase());
     if (existing) return existing.id;
     
     const newId = Math.random().toString(36).substr(2, 9);
     const newCat: Category = { id: newId, name: categoryName, icon: '📦' };
-    setCategories(prev => [...prev, newCat]);
+    
+    // Update DB
+    if (currentUser) {
+        const newCategories = [...categories, newCat];
+        updateDoc(doc(db, "households", currentUser.householdId), { categories: newCategories });
+    }
     return newId;
   };
 
-  const householdItems = useMemo(() => {
-    if (!currentUser) return [];
-    return items.filter(i => i.householdId === currentUser.householdId);
-  }, [items, currentUser]);
+  // --- Rendering ---
 
-  const householdShoppingList = useMemo(() => {
-    if (!currentUser) return [];
-    return shoppingList.filter(i => i.householdId === currentUser.householdId);
-  }, [shoppingList, currentUser]);
-
+  const householdItems = items; // Vďaka Firestore query sú už vyfiltrované pre household
   const filteredItems = useMemo(() => {
     return householdItems.filter(item => {
-      // Normalizácia pre vyhľadávanie bez diakritiky
-      const normalizeText = (text: string) => {
-          return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-      };
-
+      const normalizeText = (text: string) => text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
       const normalizedSearch = normalizeText(searchTerm);
       const normalizedName = normalizeText(item.name);
       
@@ -462,11 +440,15 @@ const App: React.FC = () => {
     lowStock: householdItems.filter(i => (i.currentQuantity / i.totalQuantity) <= 0.25 && i.currentQuantity > 0).length,
     expiring: householdItems.filter(i => i.expiryDate && new Date(i.expiryDate).getTime() < (Date.now() + 2592000000)).length,
     total: householdItems.length,
-    shoppingCount: householdShoppingList.filter(i => !i.completed).length
-  }), [householdItems, householdShoppingList]);
+    shoppingCount: shoppingList.filter(i => !i.completed).length
+  }), [householdItems, shoppingList]);
+
+  if (loading) {
+      return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-emerald-500 font-black animate-pulse">NAČÍTAVAM...</div>;
+  }
 
   if (!currentUser) {
-    return <AuthScreen onLogin={handleLogin} />;
+    return <AuthScreen onLogin={() => {}} />; // Callback neriešime, AuthListener to zachytí
   }
 
   return (
@@ -479,7 +461,7 @@ const App: React.FC = () => {
             </div>
             <div>
               <h1 className="text-base font-black text-slate-900 dark:text-white leading-tight">Špajza</h1>
-              <p className="text-[8px] font-black uppercase tracking-[0.15em] text-emerald-600 dark:text-emerald-400">Režim testovania</p>
+              <p className="text-[8px] font-black uppercase tracking-[0.15em] text-emerald-600 dark:text-emerald-400">Domácnosť: {currentUser.householdId}</p>
             </div>
           </div>
 
@@ -500,6 +482,7 @@ const App: React.FC = () => {
       <main className="max-w-7xl mx-auto px-4 py-8 sm:px-6">
         {activeTab === 'inventory' ? (
           <>
+             {/* Stats Cards */}
              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
               <button onClick={() => setFilterMode('all')} className={`text-left p-6 rounded-3xl border transition-all ${filterMode === 'all' ? 'bg-white dark:bg-slate-800 border-slate-900 dark:border-white' : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800/50'}`}>
                 <p className="text-[9px] uppercase font-black text-slate-400 tracking-widest">Inventár</p>
@@ -526,76 +509,36 @@ const App: React.FC = () => {
               </div>
             )}
 
+            {/* Controls Row */}
             <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
               <div className="flex gap-2 bg-white dark:bg-slate-900 p-1 rounded-2xl border border-slate-200 dark:border-slate-800 w-full sm:w-auto">
                 <button onClick={() => setViewMode('list')} className={`flex-1 sm:flex-none px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest ${viewMode === 'list' ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-md' : 'text-slate-400'}`}>Zoznam</button>
                 <button onClick={() => setViewMode('grid')} className={`flex-1 sm:flex-none px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest ${viewMode === 'grid' ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-md' : 'text-slate-400'}`}>Mriežka</button>
               </div>
               <div className="relative w-full sm:w-64 group">
-                {/* Search Icon */}
                 <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none transition-colors group-focus-within:text-emerald-500">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                 </div>
-
-                <input 
-                  type="text" 
-                  placeholder="Hľadať..." 
-                  value={searchTerm} 
-                  onChange={e => setSearchTerm(e.target.value)} 
-                  className={`w-full pl-12 pr-12 py-3.5 rounded-2xl border font-bold text-sm outline-none transition-all ${
-                    searchTerm 
-                      ? 'bg-emerald-50/50 dark:bg-emerald-900/10 border-emerald-500/50 text-emerald-900 dark:text-emerald-100' 
-                      : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20'
-                  }`}
-                />
-
-                {/* Clear Button - Only visible when text exists */}
+                <input type="text" placeholder="Hľadať..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className={`w-full pl-12 pr-12 py-3.5 rounded-2xl border font-bold text-sm outline-none transition-all ${searchTerm ? 'bg-emerald-50/50 dark:bg-emerald-900/10 border-emerald-500/50 text-emerald-900 dark:text-emerald-100' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20'}`}/>
                 {searchTerm && (
-                    <button 
-                        onClick={() => setSearchTerm('')}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 bg-slate-200 dark:bg-slate-700/50 text-slate-500 dark:text-slate-400 rounded-full hover:bg-red-100 hover:text-red-500 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition-all active:scale-90"
-                    >
+                    <button onClick={() => setSearchTerm('')} className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 bg-slate-200 dark:bg-slate-700/50 text-slate-500 dark:text-slate-400 rounded-full hover:bg-red-100 hover:text-red-500 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition-all active:scale-90">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" /></svg>
                     </button>
                 )}
               </div>
             </div>
 
-            {/* Category Filter - Horizontal Scroll */}
+            {/* Category Filter */}
             <div className="relative mb-6 -mx-4 sm:mx-0 group">
-              {/* Left Fade - Conditional */}
               <div className={`absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-slate-50 dark:from-slate-950 to-transparent z-10 pointer-events-none transition-opacity duration-300 ${scrollFlags.left ? 'opacity-100' : 'opacity-0'}`}></div>
-              
-              {/* Right Fade - Conditional */}
               <div className={`absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-slate-50 dark:from-slate-950 to-transparent z-10 pointer-events-none transition-opacity duration-300 ${scrollFlags.right ? 'opacity-100' : 'opacity-0'}`}></div>
-
-              <div 
-                ref={categoryScrollRef}
-                onScroll={checkScroll}
-                className="overflow-x-auto no-scrollbar flex items-center gap-3 px-4 sm:px-0 py-4 select-none snap-x"
-              >
-                <button 
-                  onClick={(e) => handleCategoryClick('all', e)}
-                  className={`shrink-0 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all active:scale-95 flex items-center gap-2 snap-center ${
-                    selectedCategory === 'all' 
-                      ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20 ring-2 ring-emerald-600 border-transparent' 
-                      : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800'
-                  }`}
-                >
+              <div ref={categoryScrollRef} onScroll={checkScroll} className="overflow-x-auto no-scrollbar flex items-center gap-3 px-4 sm:px-0 py-4 select-none snap-x">
+                <button onClick={(e) => handleCategoryClick('all', e)} className={`shrink-0 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all active:scale-95 flex items-center gap-2 snap-center ${selectedCategory === 'all' ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20 ring-2 ring-emerald-600 border-transparent' : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 6h16M4 12h16M4 18h16" /></svg>
                   Všetko
                 </button>
-                
                 {categories.map(cat => (
-                  <button
-                    key={cat.id}
-                    onClick={(e) => handleCategoryClick(cat.id, e)}
-                    className={`shrink-0 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all active:scale-95 flex items-center gap-2 snap-center ${
-                      selectedCategory === cat.id 
-                        ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20 ring-2 ring-emerald-600 border-transparent' 
-                        : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800'
-                    }`}
-                  >
+                  <button key={cat.id} onClick={(e) => handleCategoryClick(cat.id, e)} className={`shrink-0 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all active:scale-95 flex items-center gap-2 snap-center ${selectedCategory === cat.id ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20 ring-2 ring-emerald-600 border-transparent' : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
                     <span className="text-base leading-none">{cat.icon}</span>
                     {cat.name}
                   </button>
@@ -603,53 +546,23 @@ const App: React.FC = () => {
               </div>
             </div>
 
+            {/* Inventory Grid/List */}
             <div className="mt-2">
               {viewMode === 'grid' ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                   {filteredItems.map(item => (
-                    <InventoryItemCard 
-                      key={item.id} 
-                      item={item} 
-                      location={locations.find(l => l.id === item.locationId)} 
-                      category={categories.find(c => c.id === item.category)} 
-                      onUpdate={(id, updates) => {
-                         // Priamy update cez kartu (napr. len odobranie)
-                         if (updates.currentQuantity !== undefined && updates.currentQuantity < item.currentQuantity) {
-                           handleTriggerConsume(item);
-                         } else {
-                           handleUpdateItem(id, updates);
-                         }
-                      }} 
-                      onDelete={handleDeleteItem} 
-                      onEdit={handleEditItemTrigger} 
-                      onAddToShoppingList={handleAddToShoppingList} 
-                      onQuickAdd={handleTriggerQuickAdd}
-                      onConsume={handleTriggerConsume}
+                    <InventoryItemCard key={item.id} item={item} location={locations.find(l => l.id === item.locationId)} category={categories.find(c => c.id === item.category)} 
+                      onUpdate={(id, updates) => { if (updates.currentQuantity !== undefined && updates.currentQuantity < item.currentQuantity) { handleTriggerConsume(item); } else { handleUpdateItem(id, updates); }}} 
+                      onDelete={handleDeleteItem} onEdit={handleEditItemTrigger} onAddToShoppingList={handleAddToShoppingList} onQuickAdd={handleTriggerQuickAdd} onConsume={handleTriggerConsume}
                     />
                   ))}
                 </div>
               ) : (
                 <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800/50 overflow-hidden">
                   {filteredItems.map(item => (
-                    <InventoryItemRow 
-                      key={item.id} 
-                      item={item} 
-                      isExpanded={expandedItemId === item.id} // Posielame informáciu, či má byť tento riadok rozbalený
-                      onToggleExpand={() => setExpandedItemId(prev => prev === item.id ? null : item.id)} // Funkcia na prepínanie rozbalenia
-                      location={locations.find(l => l.id === item.locationId)} 
-                      category={categories.find(c => c.id === item.category)} 
-                      onUpdate={(id, updates) => {
-                         if (updates.currentQuantity !== undefined && updates.currentQuantity < item.currentQuantity) {
-                           handleTriggerConsume(item);
-                         } else {
-                           handleUpdateItem(id, updates);
-                         }
-                      }} 
-                      onDelete={handleDeleteItem} 
-                      onEdit={handleEditItemTrigger} 
-                      onAddToShoppingList={handleAddToShoppingList} 
-                      onQuickAdd={handleTriggerQuickAdd}
-                      onConsume={handleTriggerConsume}
+                    <InventoryItemRow key={item.id} item={item} isExpanded={expandedItemId === item.id} onToggleExpand={() => setExpandedItemId(prev => prev === item.id ? null : item.id)} location={locations.find(l => l.id === item.locationId)} category={categories.find(c => c.id === item.category)} 
+                      onUpdate={(id, updates) => { if (updates.currentQuantity !== undefined && updates.currentQuantity < item.currentQuantity) { handleTriggerConsume(item); } else { handleUpdateItem(id, updates); }}} 
+                      onDelete={handleDeleteItem} onEdit={handleEditItemTrigger} onAddToShoppingList={handleAddToShoppingList} onQuickAdd={handleTriggerQuickAdd} onConsume={handleTriggerConsume}
                     />
                   ))}
                 </div>
@@ -657,54 +570,47 @@ const App: React.FC = () => {
             </div>
           </>
         ) : (
-          <ShoppingList items={householdShoppingList} onUpdate={(id, up) => setShoppingList(prev => prev.map(i => i.id === id ? {...i, ...up} : i))} onDelete={id => setShoppingList(prev => prev.filter(i => i.id !== id))} onAdd={name => currentUser && setShoppingList(prev => [...prev, { id: Math.random().toString(36).substr(2, 9), name, quantity: 1, unit: Unit.KS, completed: false, householdId: currentUser.householdId }])} onClearCompleted={() => setShoppingList(prev => prev.filter(i => !i.completed))} />
+          <ShoppingList items={shoppingList} 
+            onUpdate={handleShoppingListUpdate} 
+            onDelete={handleShoppingListDelete} 
+            onAdd={handleShoppingListAdd} 
+            onClearCompleted={handleShoppingListClear} 
+          />
         )}
       </main>
 
-      <AddItemModal 
-        isOpen={isModalOpen} 
-        onClose={handleCloseModal} 
-        onAdd={handleAddItem} 
-        onUpdate={handleUpdateItem} 
-        onAddCategory={handleAddCategory} 
-        editingItem={editingItem} 
+      <AddItemModal isOpen={isModalOpen} onClose={handleCloseModal} onAdd={handleAddItem} onUpdate={handleUpdateItem} onAddCategory={handleAddCategory} editingItem={editingItem} locations={locations} categories={categories} onQuickAdd={handleTriggerQuickAdd} onConsume={handleTriggerConsume} />
+      
+      <ManageMetadataModal 
+        isOpen={isSettingsOpen} 
+        onClose={() => setIsSettingsOpen(false)} 
         locations={locations} 
-        categories={categories}
-        onQuickAdd={handleTriggerQuickAdd}
-        onConsume={handleTriggerConsume}
+        categories={categories} 
+        setLocations={(newLocs) => {
+            if (currentUser && typeof newLocs !== 'function') updateDoc(doc(db, "households", currentUser.householdId), { locations: newLocs });
+        }} 
+        setCategories={(newCats) => {
+            if (currentUser && typeof newCats !== 'function') updateDoc(doc(db, "households", currentUser.householdId), { categories: newCats });
+        }} 
+        currentUser={currentUser} 
+        onUpdateUser={(updatedUser) => {
+            if (updatedUser.householdId !== currentUser.householdId) {
+                updateDoc(doc(db, "users", currentUser.id), { householdId: updatedUser.householdId });
+            }
+        }} 
       />
-      <ManageMetadataModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} locations={locations} categories={categories} setLocations={setLocations} setCategories={setCategories} currentUser={currentUser} onUpdateUser={setCurrentUser} />
       
-      {/* Quick Add Modal pre zadanie expirácie */}
-      <QuickAddModal 
-        isOpen={!!quickAddModalItem} 
-        onClose={() => setQuickAddModalItem(null)} 
-        onConfirm={confirmQuickAdd}
-        item={quickAddModalItem}
-      />
-      
-      {/* Consume Modal pre výber šarže */}
-      <ConsumeItemModal
-        isOpen={!!consumeModalItem}
-        onClose={() => setConsumeModalItem(null)}
-        onConfirm={confirmConsume}
-        item={consumeModalItem}
-      />
+      <QuickAddModal isOpen={!!quickAddModalItem} onClose={() => setQuickAddModalItem(null)} onConfirm={confirmQuickAdd} item={quickAddModalItem} />
+      <ConsumeItemModal isOpen={!!consumeModalItem} onClose={() => setConsumeModalItem(null)} onConfirm={confirmConsume} item={consumeModalItem} />
 
       <div className="fixed bottom-0 inset-x-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl border-t border-slate-200 dark:border-slate-800 p-2 pb-8 flex justify-around items-center z-50">
-        {/* ... navigation buttons ... */}
         <button onClick={() => setActiveTab('inventory')} className={`flex-1 flex flex-col items-center gap-1 p-3 rounded-2xl active:bg-slate-100 dark:active:bg-slate-800/50 transition-all ${activeTab === 'inventory' ? 'text-emerald-600' : 'text-slate-400'}`}>
           <span className="text-xl">🧺</span>
           <span className="text-[9px] font-black uppercase tracking-widest">Zásoby</span>
         </button>
-        
-        <button 
-          onClick={() => setIsModalOpen(true)} 
-          className="mx-2 w-12 h-12 bg-emerald-600 hover:bg-emerald-500 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-emerald-600/20 active:scale-90 transition-all"
-        >
+        <button onClick={() => setIsModalOpen(true)} className="mx-2 w-12 h-12 bg-emerald-600 hover:bg-emerald-500 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-emerald-600/20 active:scale-90 transition-all">
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M12 4v16m8-8H4" /></svg>
         </button>
-        
         <button onClick={() => setActiveTab('shopping')} className={`flex-1 flex flex-col items-center gap-1 p-3 rounded-2xl active:bg-slate-100 dark:active:bg-slate-800/50 transition-all ${activeTab === 'shopping' ? 'text-emerald-600' : 'text-slate-400'}`}>
           <span className="text-xl">🛒</span>
           <span className="text-[9px] font-black uppercase tracking-widest">Nákup</span>
