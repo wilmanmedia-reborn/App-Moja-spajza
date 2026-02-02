@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { FoodItem, Unit, Location, Category } from '../types';
 
 interface Props {
@@ -16,6 +16,7 @@ interface Props {
 
 export const InventoryItemRow: React.FC<Props> = ({ item, location, category, onDelete, onEdit, onAddToShoppingList, onQuickAdd, onConsume }) => {
   const [isExpanded, setIsExpanded] = useState(false);
+  const rowRef = useRef<HTMLDivElement>(null);
   
   const percentage = (item.currentQuantity / item.totalQuantity) * 100;
   
@@ -38,8 +39,25 @@ export const InventoryItemRow: React.FC<Props> = ({ item, location, category, on
     ? Math.ceil((new Date(item.expiryDate).getTime() - Date.now()) / (86400000))
     : null;
 
+  // Efekt pre automatické scrollovanie po rozbalení
+  useEffect(() => {
+    if (isExpanded && rowRef.current) {
+      // Počkáme 300ms kým prebehne animácia "slide-in" (aby výpočet pozície bol presný)
+      const timer = setTimeout(() => {
+        rowRef.current?.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'center' // 'center' zabezpečí, že item nebude schovaný za spodným menu
+        });
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [isExpanded]);
+
   return (
-    <div className={`border-b border-slate-100 dark:border-slate-800 transition-all duration-300 flex flex-col ${isExpanded ? 'bg-slate-50 dark:bg-slate-800/80 shadow-inner' : 'bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/30'} ${isEmpty ? 'opacity-70' : ''}`}>
+    <div 
+      ref={rowRef}
+      className={`border-b border-slate-100 dark:border-slate-800 transition-all duration-300 flex flex-col ${isExpanded ? 'bg-slate-50 dark:bg-slate-800/80 shadow-inner' : 'bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/30'} ${isEmpty ? 'opacity-70' : ''}`}
+    >
       
       {/* Main Row Content - Clickable to expand */}
       <div 
