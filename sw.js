@@ -1,5 +1,5 @@
 
-const CACHE_NAME = 'pantry-v2';
+const CACHE_NAME = 'pantry-v3';
 const ASSETS = [
   '/',
   '/index.html',
@@ -7,7 +7,6 @@ const ASSETS = [
 ];
 
 self.addEventListener('install', (event) => {
-  // DÔLEŽITÉ: Okamžite aktivuj nový Service Worker, nečakaj na zatvorenie tabov
   self.skipWaiting();
   
   event.waitUntil(
@@ -16,10 +15,8 @@ self.addEventListener('install', (event) => {
 });
 
 self.addEventListener('activate', (event) => {
-  // DÔLEŽITÉ: Prevezmi kontrolu nad všetkými otvorenými klientmi ihneď
   event.waitUntil(clients.claim());
 
-  // Vymaž staré cache (napr. pantry-v1)
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
@@ -35,8 +32,6 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Pre navigačné requesty (HTML stránka) použi stratégiu Network First
-  // Tzn. skús stiahnuť najnovšiu verziu, ak to zlyhá (offline), použi cache
   if (event.request.mode === 'navigate') {
     event.respondWith(
       fetch(event.request)
@@ -47,7 +42,6 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Pre ostatné súbory (obrázky, skripty) použi Cache First (rýchlosť)
   event.respondWith(
     caches.match(event.request).then((response) => {
       return response || fetch(event.request);

@@ -130,9 +130,21 @@
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
     <script>
+      // FIX: Násilné odregistrovanie všetkých Service Workerov
+      // Toto prinúti prehliadač zahodiť starú verziu a načítať stránku nanovo z internetu.
       if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW reg error:', err));
+        navigator.serviceWorker.getRegistrations().then(function(registrations) {
+          if (registrations.length > 0) {
+              console.log('Cleaning up old Service Workers...');
+              for(let registration of registrations) {
+                registration.unregister();
+              }
+              // Ak sme našli a zmazali SW, reloadneme stránku, aby sa načítala čistá verzia
+              if (!sessionStorage.getItem('cache_cleared')) {
+                  sessionStorage.setItem('cache_cleared', 'true');
+                  window.location.reload();
+              }
+          }
         });
       }
     </script>
