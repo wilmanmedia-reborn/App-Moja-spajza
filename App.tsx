@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { InventoryItemCard } from './components/InventoryItemCard';
 import { InventoryItemRow } from './components/InventoryItemRow';
@@ -461,7 +460,8 @@ const App: React.FC = () => {
             </div>
             <div>
               <h1 className="text-base font-black text-slate-900 dark:text-white leading-tight">Špajza</h1>
-              <p className="text-[8px] font-black uppercase tracking-[0.15em] text-emerald-600 dark:text-emerald-400">Domácnosť: {currentUser.householdId}</p>
+              {/* CHANGE: Added 'ID' text to verify update */}
+              <p className="text-[8px] font-black uppercase tracking-[0.15em] text-emerald-600 dark:text-emerald-400">ID Domácnosti: {currentUser.householdId}</p>
             </div>
           </div>
 
