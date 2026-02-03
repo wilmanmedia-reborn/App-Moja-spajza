@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Location, Category, User } from '../types';
 
@@ -140,7 +139,7 @@ export const ManageMetadataModal: React.FC<Props> = ({
 
   const TabButton = ({ id, label, active }: { id: 'locations' | 'categories' | 'household', label: string, active: boolean }) => (
     <button 
-      ref={el => tabsRef.current[id] = el}
+      ref={el => { tabsRef.current[id] = el; }}
       onClick={() => setActiveSubTab(id)}
       className={`shrink-0 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all duration-300 whitespace-nowrap scroll-ml-4 ${
         active 

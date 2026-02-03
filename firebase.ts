@@ -7,16 +7,18 @@ import { getFirestore, enableIndexedDbPersistence } from "firebase/firestore";
 // DÔLEŽITÉ: Tu nahraďte hodnoty svojimi kľúčmi z Firebase Console!
 // ------------------------------------------------------------------
 const firebaseConfig = {
-  apiKey: "PASTE_YOUR_API_KEY_HERE",
-  authDomain: "your-app.firebaseapp.com",
-  projectId: "your-app-id",
-  storageBucket: "your-app.appspot.com",
-  messagingSenderId: "123456789",
-  appId: "1:123456789:web:abcdef"
+  apiKey: "AIzaSyCiwov4WvhrpLKABMMxBF20gXjtgYaI6lQ",
+  authDomain: "moja-spajza.firebaseapp.com",
+  projectId: "moja-spajza",
+  storageBucket: "moja-spajza.firebasestorage.app",
+  messagingSenderId: "828799667228",
+  appId: "1:828799667228:web:c49e9171be80eb77b6a3d9",
+  measurementId: "G-ELVPCN48PV"
 };
 
-// Detekcia či sú kľúče nastavené (pre účely vývoja)
-export const isFirebaseConfigured = firebaseConfig.apiKey !== "PASTE_YOUR_API_KEY_HERE";
+// Detekcia či sú kľúče nastavené. 
+// Keďže sme ich už vyplnili, nastavíme túto hodnotu napevno na true.
+export const isFirebaseConfigured = true;
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
