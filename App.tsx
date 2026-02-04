@@ -461,10 +461,10 @@ const App: React.FC = () => {
             </div>
             <div>
               <h1 className="text-base font-black text-slate-900 dark:text-white leading-tight">Špajza</h1>
-              {/* CHANGE: Added 'v4.0 (Reštart)' text to visually verify update */}
+              {/* CHANGE: Updated to v5.0 with red background for high visibility */}
               <div className="flex items-center gap-2">
                  <p className="text-[8px] font-black uppercase tracking-[0.15em] text-emerald-600 dark:text-emerald-400">ID Domácnosti: {currentUser.householdId}</p>
-                 <span className="text-[8px] bg-slate-200 dark:bg-slate-800 px-1.5 py-0.5 rounded text-slate-500 font-black">v4.0 (Reštart)</span>
+                 <span className="text-[8px] bg-red-500 text-white px-2 py-0.5 rounded font-black shadow-lg shadow-red-500/30 animate-pulse">v5.0 (FINAL)</span>
               </div>
             </div>
           </div>

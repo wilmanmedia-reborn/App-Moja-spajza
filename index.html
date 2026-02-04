@@ -4,6 +4,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    
+    <!-- CACHE BUSTING META TAGS -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+
     <title>Moja Špajza</title>
     
     <!-- PWA meta tagy -->
@@ -131,7 +137,6 @@
     <script type="module" src="/index.tsx"></script>
     <script>
       // FIX: Násilné odregistrovanie všetkých Service Workerov
-      // Toto prinúti prehliadač zahodiť starú verziu a načítať stránku nanovo z internetu.
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.getRegistrations().then(function(registrations) {
           if (registrations.length > 0) {
@@ -139,9 +144,8 @@
               for(let registration of registrations) {
                 registration.unregister();
               }
-              // Ak sme našli a zmazali SW, reloadneme stránku, aby sa načítala čistá verzia
-              if (!sessionStorage.getItem('cache_cleared')) {
-                  sessionStorage.setItem('cache_cleared', 'true');
+              if (!sessionStorage.getItem('cache_cleared_v5')) {
+                  sessionStorage.setItem('cache_cleared_v5', 'true');
                   window.location.reload();
               }
           }
