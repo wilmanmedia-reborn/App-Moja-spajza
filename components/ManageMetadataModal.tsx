@@ -23,6 +23,7 @@ export const ManageMetadataModal: React.FC<Props> = ({
   const [newIcon, setNewIcon] = useState('📦');
   const [joinCode, setJoinCode] = useState('');
 
+  // Refs pre automatické scrollovanie
   const tabsContainerRef = useRef<HTMLDivElement>(null);
   const tabsRef = useRef<{ [key: string]: HTMLButtonElement | null }>({
     locations: null,
@@ -30,6 +31,7 @@ export const ManageMetadataModal: React.FC<Props> = ({
     household: null
   });
 
+  // Efekt pre automatické centrovanie aktívnej záložky
   useEffect(() => {
     if (isOpen && tabsContainerRef.current && tabsRef.current[activeSubTab]) {
       const container = tabsContainerRef.current;
@@ -39,8 +41,14 @@ export const ManageMetadataModal: React.FC<Props> = ({
         const containerWidth = container.offsetWidth;
         const tabWidth = tab.offsetWidth;
         const tabLeft = tab.offsetLeft;
+
+        // Výpočet pozície tak, aby bol tab v strede
         const scrollPosition = tabLeft - (containerWidth / 2) + (tabWidth / 2);
-        container.scrollTo({ left: scrollPosition, behavior: 'smooth' });
+
+        container.scrollTo({
+          left: scrollPosition,
+          behavior: 'smooth'
+        });
       }
     }
   }, [activeSubTab, isOpen]);
@@ -54,44 +62,6 @@ export const ManageMetadataModal: React.FC<Props> = ({
       }
   };
 
-  const handleExport = () => {
-    const data = {
-      items: JSON.parse(localStorage.getItem('pantry_items') || '[]'), // Fallback pre local storage, inak berie z props v App
-      locations: locations,
-      categories: categories,
-      // Exportujeme len štruktúru, dáta sú v DB
-      generatedAt: new Date().toISOString()
-    };
-    const dataStr = JSON.stringify(data, null, 2);
-    const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
-    const exportFileDefaultName = `spajza_zaloha_${new Date().toISOString().split('T')[0]}.json`;
-    
-    const linkElement = document.createElement('a');
-    linkElement.setAttribute('href', dataUri);
-    linkElement.setAttribute('download', exportFileDefaultName);
-    linkElement.click();
-  };
-
-  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const importedData = JSON.parse(event.target?.result as string);
-        if (confirm('Import prepíše lokálne kategórie a lokality. Pokračovať?')) {
-          if (importedData.locations) setLocations(importedData.locations);
-          if (importedData.categories) setCategories(importedData.categories);
-          alert('Nastavenia importované.');
-        }
-      } catch (err) {
-        alert('Chyba pri čítaní súboru.');
-      }
-    };
-    reader.readAsText(file);
-  };
-
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newName.trim()) return;
@@ -103,20 +73,24 @@ export const ManageMetadataModal: React.FC<Props> = ({
     };
 
     if (activeSubTab === 'locations') {
+      // V App.tsx táto funkcia robí updateDoc do Firestore
       setLocations([...locations, newItem]);
     } else {
       setCategories([...categories, newItem]);
     }
+
     setNewName('');
     setNewIcon('📦');
   };
 
   const handleDelete = (id: string, type: 'locations' | 'categories') => {
-    if (confirm('Odstrániť položku?')) {
+    if (confirm('Naozaj chcete odstrániť túto položku? Položky v inventári, ktoré ju používajú, môžu zobraziť predvolenú hodnotu.')) {
       if (type === 'locations') {
-        setLocations(locations.filter(l => l.id !== id));
+        const newLocs = locations.filter(l => l.id !== id);
+        setLocations(newLocs);
       } else {
-        setCategories(categories.filter(c => c.id !== id));
+        const newCats = categories.filter(c => c.id !== id);
+        setCategories(newCats);
       }
     }
   };
@@ -124,9 +98,9 @@ export const ManageMetadataModal: React.FC<Props> = ({
   const handleJoinHousehold = (e: React.FormEvent) => {
     e.preventDefault();
     if (currentUser && joinCode.trim().length >= 4) {
-      if (confirm(`Pripojiť sa k domácnosti ${joinCode.toUpperCase()}?`)) {
+      if (confirm(`Naozaj sa chcete pripojiť k domácnosti ${joinCode.toUpperCase()}? Vaše aktuálne zásoby budú nahradené zásobami novej domácnosti.`)) {
         onUpdateUser({ ...currentUser, householdId: joinCode.toUpperCase() });
-        alert('Požiadavka odoslaná. Dáta sa synchronizujú.');
+        // Alert odstránený pre plynulejší zážitok - loading stav v App.tsx preberie vizuálnu odozvu
         onClose();
       }
     }
@@ -161,16 +135,23 @@ export const ManageMetadataModal: React.FC<Props> = ({
           </button>
         </div>
 
-        {/* Navigation Tabs */}
+        {/* Navigation Tabs - Auto Scroll Container */}
         <div className="bg-slate-100 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-800 py-4 shrink-0 relative">
-           <div ref={tabsContainerRef} className="flex gap-2 overflow-x-auto no-scrollbar px-4 items-center snap-x">
+           {/* Fade effect on sides to indicate scroll */}
+           <div className="absolute left-0 top-0 bottom-0 w-4 bg-gradient-to-r from-slate-100 dark:from-slate-900 to-transparent z-10 pointer-events-none"></div>
+           <div className="absolute right-0 top-0 bottom-0 w-4 bg-gradient-to-l from-slate-100 dark:from-slate-900 to-transparent z-10 pointer-events-none"></div>
+           
+           <div 
+             ref={tabsContainerRef}
+             className="flex gap-2 overflow-x-auto no-scrollbar px-4 items-center snap-x"
+           >
             <TabButton id="locations" label="Lokality" active={activeSubTab === 'locations'} />
             <TabButton id="categories" label="Kategórie" active={activeSubTab === 'categories'} />
-            <TabButton id="household" label="Účet" active={activeSubTab === 'household'} />
+            <TabButton id="household" label="Synchronizácia" active={activeSubTab === 'household'} />
            </div>
         </div>
 
-        {/* Content Area */}
+        {/* Content Area - Scrollable */}
         <div className="flex-1 overflow-y-auto no-scrollbar p-6 relative">
             {activeSubTab === 'household' ? (
               <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300 pb-4">
@@ -181,7 +162,7 @@ export const ManageMetadataModal: React.FC<Props> = ({
                     {currentUser?.householdId}
                   </div>
                   <p className="text-[9px] font-bold text-slate-500 dark:text-slate-400">
-                      Tento kód zadajte na druhom zariadení pre zdieľanie zásob.
+                      Tento kód zadajte na druhom zariadení (napr. manželkin mobil), aby ste zdieľali rovnakú špajzu.
                   </p>
                 </div>
 
@@ -205,19 +186,8 @@ export const ManageMetadataModal: React.FC<Props> = ({
                       </button>
                   </form>
                 </div>
-
-                <div className="p-6 bg-slate-50 dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700">
-                  <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Záloha nastavení</h4>
-                  <div className="grid grid-cols-2 gap-3">
-                    <button onClick={handleExport} className="py-3 bg-white dark:bg-slate-700 rounded-xl text-[10px] font-bold uppercase tracking-widest border border-slate-200 dark:border-slate-600">Export</button>
-                    <label className="py-3 bg-white dark:bg-slate-700 rounded-xl text-[10px] font-bold uppercase tracking-widest border border-slate-200 dark:border-slate-600 text-center cursor-pointer">
-                        Import
-                        <input type="file" accept=".json" onChange={handleImport} className="hidden" />
-                    </label>
-                  </div>
-                </div>
                 
-                <div className="pt-4 border-t border-slate-100 dark:border-slate-800">
+                <div className="pt-6 border-t border-slate-100 dark:border-slate-800">
                     <button 
                         onClick={handleLogout}
                         className="w-full py-4 text-red-500 font-black rounded-2xl text-[10px] uppercase tracking-widest hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
@@ -248,15 +218,33 @@ export const ManageMetadataModal: React.FC<Props> = ({
             )}
         </div>
 
+        {/* Footer Form - Fixed at Bottom for Locations & Categories */}
         {activeSubTab !== 'household' && (
           <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0 z-10">
             <form onSubmit={handleAdd} className="p-4 bg-emerald-50 dark:bg-emerald-950/20 rounded-3xl border-2 border-emerald-100 dark:border-emerald-900/50">
                 <h4 className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest mb-3">Pridať novú {activeSubTab === 'locations' ? 'lokalitu' : 'kategóriu'}</h4>
                 <div className="flex gap-3">
-                  <input type="text" value={newIcon} onChange={e => setNewIcon(e.target.value)} placeholder="🏠" className="w-14 px-2 py-3 bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-none rounded-2xl text-center font-bold outline-none focus:ring-2 focus:ring-emerald-500 shadow-sm" />
-                  <input type="text" value={newName} onChange={e => setNewName(e.target.value)} placeholder="Názov..." className="flex-1 min-w-0 px-5 py-3 bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-none rounded-2xl font-bold outline-none focus:ring-2 focus:ring-emerald-500 shadow-sm" />
+                  <input 
+                    type="text" 
+                    value={newIcon}
+                    onChange={e => setNewIcon(e.target.value)}
+                    placeholder="🏠"
+                    className="w-14 px-2 py-3 bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-none rounded-2xl text-center font-bold outline-none focus:ring-2 focus:ring-emerald-500 shadow-sm"
+                  />
+                  <input 
+                    type="text" 
+                    value={newName}
+                    onChange={e => setNewName(e.target.value)}
+                    placeholder="Názov..."
+                    className="flex-1 min-w-0 px-5 py-3 bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-none rounded-2xl font-bold outline-none focus:ring-2 focus:ring-emerald-500 shadow-sm"
+                  />
                 </div>
-                <button type="submit" className="w-full mt-3 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-2xl transition-all active:scale-95 uppercase text-[10px] tracking-widest shadow-lg shadow-emerald-600/20">Potvrdiť</button>
+                <button 
+                  type="submit"
+                  className="w-full mt-3 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-2xl transition-all active:scale-95 uppercase text-[10px] tracking-widest shadow-lg shadow-emerald-600/20"
+                >
+                  Potvrdiť
+                </button>
             </form>
           </div>
         )}

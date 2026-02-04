@@ -119,8 +119,8 @@ const App: React.FC = () => {
     if (!currentUser?.householdId) return;
 
     // Reset items when switching household to avoid mixing data visually before load
-    setItems([]);
-    setShoppingList([]);
+    // setItems([]); // Toto už robíme v onUpdateUser pre lepší UX
+    // setShoppingList([]);
 
     const householdRef = doc(db, "households", currentUser.householdId);
     
@@ -585,10 +585,23 @@ const App: React.FC = () => {
         currentUser={currentUser} 
         onUpdateUser={(updatedUser) => {
             if (updatedUser.householdId !== currentUser.householdId) {
-                // 1. Zmeníme údaje vo Firestore
+                // 1. Spustíme 'loading' obrazovku
+                setLoading(true);
+                
+                // 2. Okamžite vyčistíme staré dáta
+                setItems([]);
+                setShoppingList([]);
+                
+                // 3. Aktualizujeme backend
                 updateDoc(doc(db, "users", currentUser.id), { householdId: updatedUser.householdId });
-                // 2. OKAMŽITÁ ZMENA LOKÁLNEHO STAVU - TOTO SPÔSOBÍ PREPNUTIE LISTENEROV
+                
+                // 4. Aktualizujeme lokálny stav (spustí listenery)
                 setCurrentUser(updatedUser);
+                
+                // 5. Vypneme loading s malým oneskorením pre pocit "refreshu" a aby sa stihol firestore pripojiť
+                setTimeout(() => {
+                    setLoading(false);
+                }, 800);
             }
         }} 
       />
