@@ -67,15 +67,21 @@ export const AuthScreen: React.FC<Props> = ({ onLogin }) => {
             await signInWithEmailAndPassword(auth, email, password);
         }
     } catch (err: any) {
-        console.error(err);
-        if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password') {
+        console.error("Auth Error:", err);
+        // Preklad a ošetrenie špecifických Firebase chýb
+        if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found') {
             setError('Nesprávny email alebo heslo.');
         } else if (err.code === 'auth/email-already-in-use') {
-            setError('Tento email sa už používa.');
+            setError('Tento email už používa iný účet.');
         } else if (err.code === 'auth/weak-password') {
             setError('Heslo je príliš slabé (min. 6 znakov).');
+        } else if (err.code === 'auth/configuration-not-found' || err.code === 'auth/operation-not-allowed') {
+            // TOTO JE ERROR Z SCREENSHOTU - Znamená, že Authentication nie je zapnuté v konzole
+            setError('⚠️ CHYBA KONFIGURÁCIE: V Firebase Console nie je povolené prihlasovanie "Email/Password". Prejdite do Authentication > Sign-in method a povoľte ho.');
+        } else if (err.code === 'auth/network-request-failed') {
+            setError('Chyba pripojenia. Skontrolujte internet.');
         } else {
-            setError('Nastala chyba pri prihlasovaní: ' + err.message);
+            setError('Nastala chyba: ' + err.message);
         }
     } finally {
         setLoading(false);
