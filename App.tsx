@@ -524,7 +524,7 @@ const App: React.FC = () => {
               </div>
             )}
 
-            {/* Search Bar - NOW FULL WIDTH (Removed view buttons from here) */}
+            {/* Search Bar */}
             <div className="mb-6 relative group">
                 <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none transition-colors group-focus-within:text-emerald-500">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
@@ -555,18 +555,28 @@ const App: React.FC = () => {
               </div>
             </div>
 
-            {/* View Mode Switcher - MOVED HERE (Below Categories) */}
-            <div className="flex justify-end mb-4">
-               <div className="flex gap-1 bg-white dark:bg-slate-900 p-1 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
-                  <button onClick={() => setViewMode('list')} className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === 'list' ? 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white' : 'text-slate-400 hover:text-slate-600'}`}>Zoznam</button>
-                  <button onClick={() => setViewMode('grid')} className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === 'grid' ? 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white' : 'text-slate-400 hover:text-slate-600'}`}>Mriežka</button>
-               </div>
+            {/* View Mode Switcher - RE-DESIGNED FULL WIDTH */}
+            <div className="mb-6 bg-slate-100 dark:bg-slate-800/50 p-1.5 rounded-2xl flex relative h-14">
+               <button 
+                onClick={() => setViewMode('list')} 
+                className={`flex-1 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-300 flex items-center justify-center gap-2 ${viewMode === 'list' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm scale-100' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-white/50 dark:hover:bg-slate-700/50'}`}
+               >
+                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 6h16M4 12h16M4 18h16" /></svg>
+                 Zoznam
+               </button>
+               <button 
+                onClick={() => setViewMode('grid')} 
+                className={`flex-1 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-300 flex items-center justify-center gap-2 ${viewMode === 'grid' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm scale-100' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-white/50 dark:hover:bg-slate-700/50'}`}
+               >
+                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>
+                 Mriežka
+               </button>
             </div>
 
             {/* Inventory Grid/List */}
             <div className="mt-2">
               {viewMode === 'grid' ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                   {filteredItems.map(item => (
                     <InventoryItemCard key={item.id} item={item} location={locations.find(l => l.id === item.locationId)} category={categories.find(c => c.id === item.category)} 
                       onUpdate={(id, updates) => { if (updates.currentQuantity !== undefined && updates.currentQuantity < item.currentQuantity) { handleTriggerConsume(item); } else { handleUpdateItem(id, updates); }}} 
