@@ -19,7 +19,7 @@ export const AuthScreen: React.FC<Props> = ({ onLogin }) => {
   const [loading, setLoading] = useState(false);
   const [imageError, setImageError] = useState(false);
   
-  // Nový state pre viditeľnosť hesla
+  // State pre viditeľnosť hesla
   const [showPassword, setShowPassword] = useState(false);
 
   const handleAuth = async (e: React.FormEvent) => {
@@ -83,21 +83,25 @@ export const AuthScreen: React.FC<Props> = ({ onLogin }) => {
   };
 
   const handleAddAtSign = (e: React.MouseEvent) => {
-      e.preventDefault(); // Aby submit form neprebehol
+      e.preventDefault(); 
       setEmail(prev => prev + '@');
-      // Focus vrátime na input (voliteľné, ale user experience je lepší)
       const emailInput = document.getElementById('email-input');
       emailInput?.focus();
   };
 
   return (
-    // Zmena: h-[100dvh] a overflow-hidden zabezpečí, že stránka nebude scrollovať a bude vždy na celú výšku viewportu
-    <div className="h-[100dvh] w-full bg-slate-950 flex items-center justify-center p-4 relative overflow-hidden">
+    // POUŽITIE FIXED INSET-0: Toto napevno pripne kontajner k okrajom okna a zabráni scrolovaniu stránky (body)
+    <div className="fixed inset-0 bg-slate-950 flex items-center justify-center p-4 overflow-hidden z-50">
+      
+      {/* Pozadie */}
       <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-emerald-500/20 blur-[120px] rounded-full pointer-events-none"></div>
       <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-indigo-500/20 blur-[120px] rounded-full pointer-events-none"></div>
 
-      <div className="w-full max-w-md bg-white/5 backdrop-blur-3xl border border-white/10 rounded-[2.5rem] p-8 shadow-2xl relative z-10 flex flex-col max-h-full">
-        <div className="text-center mb-8 shrink-0">
+      {/* Karta */}
+      <div className="w-full max-w-md bg-white/5 backdrop-blur-3xl border border-white/10 rounded-[2.5rem] p-8 shadow-2xl relative z-10 flex flex-col max-h-[90vh]">
+        
+        {/* Hlavička - fixná */}
+        <div className="text-center mb-6 shrink-0">
           <div className="w-16 h-16 bg-emerald-600 rounded-2xl flex items-center justify-center text-3xl shadow-2xl shadow-emerald-600/30 mx-auto mb-4 overflow-hidden relative group">
             <span className="absolute inset-0 flex items-center justify-center">🥗</span>
             {!imageError && (
@@ -113,8 +117,8 @@ export const AuthScreen: React.FC<Props> = ({ onLogin }) => {
           <p className="text-slate-400 font-bold uppercase tracking-widest text-[9px]">Synchronizovaná domácnosť</p>
         </div>
 
-        {/* Scrollable area only for form if screen is too small */}
-        <div className="overflow-y-auto no-scrollbar flex-1 -mx-4 px-4 pb-2">
+        {/* Form - skrolovateľný iba vnútri karty, ak je klávesnica otvorená */}
+        <div className="overflow-y-auto no-scrollbar -mx-4 px-4 pb-2 flex-1">
             <form onSubmit={handleAuth} className="space-y-5">
             {isRegistering && (
                 <div>
@@ -131,10 +135,10 @@ export const AuthScreen: React.FC<Props> = ({ onLogin }) => {
                 <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5 ml-1">E-mailová adresa</label>
                 <div className="relative">
                     <input 
-                    id="email-input"
-                    required type="email" value={email} onChange={e => setEmail(e.target.value)}
-                    className="w-full pl-5 pr-14 py-3.5 bg-white/5 border border-white/10 rounded-2xl text-white outline-none focus:ring-2 focus:ring-emerald-500 transition-all font-bold placeholder:text-slate-600"
-                    placeholder="moja@spajza.sk"
+                        id="email-input"
+                        required type="email" value={email} onChange={e => setEmail(e.target.value)}
+                        className="w-full pl-5 pr-14 py-3.5 bg-white/5 border border-white/10 rounded-2xl text-white outline-none focus:ring-2 focus:ring-emerald-500 transition-all font-bold placeholder:text-slate-600"
+                        placeholder="moja@spajza.sk"
                     />
                     <button 
                         type="button"
@@ -151,17 +155,18 @@ export const AuthScreen: React.FC<Props> = ({ onLogin }) => {
                 <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Heslo</label>
                 <div className="relative">
                     <input 
-                    required 
-                    type={showPassword ? "text" : "password"} 
-                    value={password} 
-                    onChange={e => setPassword(e.target.value)}
-                    className="w-full pl-5 pr-12 py-3.5 bg-white/5 border border-white/10 rounded-2xl text-white outline-none focus:ring-2 focus:ring-emerald-500 transition-all font-bold placeholder:text-slate-600"
-                    placeholder="••••••••"
+                        required 
+                        type={showPassword ? "text" : "password"} 
+                        value={password} 
+                        onChange={e => setPassword(e.target.value)}
+                        className="w-full pl-5 pr-12 py-3.5 bg-white/5 border border-white/10 rounded-2xl text-white outline-none focus:ring-2 focus:ring-emerald-500 transition-all font-bold placeholder:text-slate-600"
+                        placeholder="••••••••"
                     />
                     <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
                         className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center text-slate-400 hover:text-white transition-colors"
+                        title={showPassword ? "Skryť heslo" : "Zobraziť heslo"}
                     >
                         {showPassword ? (
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
@@ -195,7 +200,8 @@ export const AuthScreen: React.FC<Props> = ({ onLogin }) => {
             </form>
         </div>
 
-        <div className="mt-6 text-center shrink-0">
+        {/* Prepínač režimu - fixný dole v karte */}
+        <div className="mt-4 text-center shrink-0">
           <button 
             onClick={() => {
                 setIsRegistering(!isRegistering);
