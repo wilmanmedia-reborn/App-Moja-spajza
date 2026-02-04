@@ -18,6 +18,9 @@ export const AuthScreen: React.FC<Props> = ({ onLogin }) => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [imageError, setImageError] = useState(false);
+  
+  // Nový state pre viditeľnosť hesla
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,7 +65,6 @@ export const AuthScreen: React.FC<Props> = ({ onLogin }) => {
         } else {
             // PRIHLÁSENIE
             await signInWithEmailAndPassword(auth, email, password);
-            // Poznámka: samotný callback onAuthStateChanged v App.tsx sa postará o načítanie dát
         }
     } catch (err: any) {
         console.error(err);
@@ -80,14 +82,23 @@ export const AuthScreen: React.FC<Props> = ({ onLogin }) => {
     }
   };
 
-  return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 relative overflow-hidden">
-      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-emerald-500/20 blur-[120px] rounded-full"></div>
-      <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-indigo-500/20 blur-[120px] rounded-full"></div>
+  const handleAddAtSign = (e: React.MouseEvent) => {
+      e.preventDefault(); // Aby submit form neprebehol
+      setEmail(prev => prev + '@');
+      // Focus vrátime na input (voliteľné, ale user experience je lepší)
+      const emailInput = document.getElementById('email-input');
+      emailInput?.focus();
+  };
 
-      <div className="w-full max-w-md bg-white/5 backdrop-blur-3xl border border-white/10 rounded-[3rem] p-8 sm:p-12 shadow-2xl relative z-10">
-        <div className="text-center mb-10">
-          <div className="w-20 h-20 bg-emerald-600 rounded-[2rem] flex items-center justify-center text-4xl shadow-2xl shadow-emerald-600/30 mx-auto mb-6 overflow-hidden relative group">
+  return (
+    // Zmena: h-[100dvh] a overflow-hidden zabezpečí, že stránka nebude scrollovať a bude vždy na celú výšku viewportu
+    <div className="h-[100dvh] w-full bg-slate-950 flex items-center justify-center p-4 relative overflow-hidden">
+      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-emerald-500/20 blur-[120px] rounded-full pointer-events-none"></div>
+      <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-indigo-500/20 blur-[120px] rounded-full pointer-events-none"></div>
+
+      <div className="w-full max-w-md bg-white/5 backdrop-blur-3xl border border-white/10 rounded-[2.5rem] p-8 shadow-2xl relative z-10 flex flex-col max-h-full">
+        <div className="text-center mb-8 shrink-0">
+          <div className="w-16 h-16 bg-emerald-600 rounded-2xl flex items-center justify-center text-3xl shadow-2xl shadow-emerald-600/30 mx-auto mb-4 overflow-hidden relative group">
             <span className="absolute inset-0 flex items-center justify-center">🥗</span>
             {!imageError && (
               <img 
@@ -98,69 +109,99 @@ export const AuthScreen: React.FC<Props> = ({ onLogin }) => {
               />
             )}
           </div>
-          <h1 className="text-3xl font-black text-white mb-2">Moja Špajza</h1>
-          <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Synchronizovaná domácnosť</p>
+          <h1 className="text-2xl font-black text-white mb-1">Moja Špajza</h1>
+          <p className="text-slate-400 font-bold uppercase tracking-widest text-[9px]">Synchronizovaná domácnosť</p>
         </div>
 
-        <form onSubmit={handleAuth} className="space-y-6">
-          {isRegistering && (
+        {/* Scrollable area only for form if screen is too small */}
+        <div className="overflow-y-auto no-scrollbar flex-1 -mx-4 px-4 pb-2">
+            <form onSubmit={handleAuth} className="space-y-5">
+            {isRegistering && (
+                <div>
+                <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Vaše meno</label>
+                <input 
+                    required type="text" value={name} onChange={e => setName(e.target.value)}
+                    className="w-full px-5 py-3.5 bg-white/5 border border-white/10 rounded-2xl text-white outline-none focus:ring-2 focus:ring-emerald-500 transition-all font-bold placeholder:text-slate-600"
+                    placeholder="napr. David"
+                />
+                </div>
+            )}
+            
             <div>
-              <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Vaše meno</label>
-              <input 
-                required type="text" value={name} onChange={e => setName(e.target.value)}
-                className="w-full px-6 py-4 bg-white/5 border border-white/10 rounded-2xl text-white outline-none focus:ring-2 focus:ring-emerald-500 transition-all font-bold"
-                placeholder="napr. Peter"
-              />
+                <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5 ml-1">E-mailová adresa</label>
+                <div className="relative">
+                    <input 
+                    id="email-input"
+                    required type="email" value={email} onChange={e => setEmail(e.target.value)}
+                    className="w-full pl-5 pr-14 py-3.5 bg-white/5 border border-white/10 rounded-2xl text-white outline-none focus:ring-2 focus:ring-emerald-500 transition-all font-bold placeholder:text-slate-600"
+                    placeholder="moja@spajza.sk"
+                    />
+                    <button 
+                        type="button"
+                        onClick={handleAddAtSign}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center text-emerald-500 hover:text-emerald-400 font-black text-lg bg-white/5 hover:bg-white/10 rounded-xl transition-all active:scale-95"
+                        title="Vložiť @"
+                    >
+                        @
+                    </button>
+                </div>
             </div>
-          )}
-          
-          <div>
-            <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">E-mailová adresa</label>
-            <input 
-              required type="email" value={email} onChange={e => setEmail(e.target.value)}
-              className="w-full px-6 py-4 bg-white/5 border border-white/10 rounded-2xl text-white outline-none focus:ring-2 focus:ring-emerald-500 transition-all font-bold"
-              placeholder="peter@priklad.sk"
-            />
-          </div>
 
-          <div>
-            <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Heslo</label>
-            <input 
-              required type="password" value={password} onChange={e => setPassword(e.target.value)}
-              className="w-full px-6 py-4 bg-white/5 border border-white/10 rounded-2xl text-white outline-none focus:ring-2 focus:ring-emerald-500 transition-all font-bold"
-              placeholder="••••••••"
-            />
-          </div>
-
-          {!isFirebaseConfigured && (
-             <div className="bg-amber-500/20 text-amber-400 p-4 rounded-xl text-xs font-bold border border-amber-500/30 text-center">
-                 ⚠️ Pre fungovanie aplikácie musíte nastaviť Firebase kľúče v súbore firebase.ts
-             </div>
-          )}
-
-          {error && (
-            <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-bold p-4 rounded-xl text-center">
-              {error}
+            <div>
+                <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Heslo</label>
+                <div className="relative">
+                    <input 
+                    required 
+                    type={showPassword ? "text" : "password"} 
+                    value={password} 
+                    onChange={e => setPassword(e.target.value)}
+                    className="w-full pl-5 pr-12 py-3.5 bg-white/5 border border-white/10 rounded-2xl text-white outline-none focus:ring-2 focus:ring-emerald-500 transition-all font-bold placeholder:text-slate-600"
+                    placeholder="••••••••"
+                    />
+                    <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center text-slate-400 hover:text-white transition-colors"
+                    >
+                        {showPassword ? (
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
+                        ) : (
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                        )}
+                    </button>
+                </div>
             </div>
-          )}
 
-          <button 
-            type="submit" 
-            disabled={loading}
-            className="w-full py-5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-500 text-white font-black rounded-2xl shadow-xl shadow-emerald-600/20 transition-all uppercase tracking-widest text-sm active:scale-95 flex items-center justify-center gap-2"
-          >
-            {loading && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>}
-            {isRegistering ? 'Vytvoriť účet' : 'Prihlásiť sa'}
-          </button>
-        </form>
+            {!isFirebaseConfigured && (
+                <div className="bg-amber-500/20 text-amber-400 p-3 rounded-xl text-[10px] font-bold border border-amber-500/30 text-center">
+                    ⚠️ Nastavte Firebase kľúče v firebase.ts
+                </div>
+            )}
 
-        <div className="mt-8 text-center">
+            {error && (
+                <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-bold p-3 rounded-xl text-center">
+                {error}
+                </div>
+            )}
+
+            <button 
+                type="submit" 
+                disabled={loading}
+                className="w-full py-4 mt-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-500 text-white font-black rounded-2xl shadow-xl shadow-emerald-600/20 transition-all uppercase tracking-widest text-xs active:scale-95 flex items-center justify-center gap-2"
+            >
+                {loading && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>}
+                {isRegistering ? 'Vytvoriť účet' : 'Prihlásiť sa'}
+            </button>
+            </form>
+        </div>
+
+        <div className="mt-6 text-center shrink-0">
           <button 
             onClick={() => {
                 setIsRegistering(!isRegistering);
                 setError('');
             }}
-            className="text-slate-400 hover:text-white transition-colors text-xs font-black uppercase tracking-widest"
+            className="text-slate-400 hover:text-white transition-colors text-[10px] font-black uppercase tracking-widest py-2 px-4"
           >
             {isRegistering ? 'Už máte účet? Prihláste sa' : 'Nemáte účet? Zaregistrujte sa'}
           </button>
