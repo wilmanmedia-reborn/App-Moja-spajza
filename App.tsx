@@ -196,6 +196,12 @@ const App: React.FC = () => {
     };
 
     await addDoc(collection(db, "households", currentUser.householdId, "items"), itemPayload);
+
+    // RESET FILTROV: Aby používateľ videl pridanú položku
+    setSearchTerm('');
+    setFilterMode('all');
+    setSelectedCategory('all');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleUpdateItem = async (id: string, updates: Partial<FoodItem>) => {

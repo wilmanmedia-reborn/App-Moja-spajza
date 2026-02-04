@@ -31,6 +31,24 @@ export const ManageMetadataModal: React.FC<Props> = ({
     household: null
   });
 
+  // Zámok scrollovania tela stránky pri otvorenom modale
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+      document.body.style.position = 'fixed';
+      document.body.style.width = '100%';
+    } else {
+      document.body.style.overflow = '';
+      document.body.style.position = '';
+      document.body.style.width = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+      document.body.style.position = '';
+      document.body.style.width = '';
+    };
+  }, [isOpen]);
+
   // Efekt pre automatické centrovanie aktívnej záložky
   useEffect(() => {
     if (isOpen && tabsContainerRef.current && tabsRef.current[activeSubTab]) {
@@ -100,7 +118,7 @@ export const ManageMetadataModal: React.FC<Props> = ({
     if (currentUser && joinCode.trim().length >= 4) {
       if (confirm(`Naozaj sa chcete pripojiť k domácnosti ${joinCode.toUpperCase()}? Vaše aktuálne zásoby budú nahradené zásobami novej domácnosti.`)) {
         onUpdateUser({ ...currentUser, householdId: joinCode.toUpperCase() });
-        // Alert odstránený pre plynulejší zážitok - loading stav v App.tsx preberie vizuálnu odozvu
+        alert('Požiadavka na pripojenie odoslaná. Dáta sa synchronizujú.');
         onClose();
       }
     }
@@ -138,7 +156,8 @@ export const ManageMetadataModal: React.FC<Props> = ({
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
-      <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800 flex flex-col h-full sm:h-[85vh]">
+      {/* Zmenená výška na max-h-[85vh] a h-auto pre prispôsobenie obsahu */}
+      <div className="bg-white dark:bg-slate-900 w-full max-w-lg shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800 flex flex-col h-auto max-h-[85vh] rounded-3xl">
         
         {/* Header */}
         <div className="px-8 py-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-800/50 shrink-0">
