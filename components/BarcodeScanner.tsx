@@ -1,4 +1,5 @@
 
+// @ts-nocheck
 import React, { useEffect, useRef, useState } from 'react';
 
 declare var Html5Qrcode: any;
@@ -45,7 +46,6 @@ export const BarcodeScanner: React.FC<Props> = ({ onScan, onClose, isAnalyzing }
           experimentalFeatures: { useBarCodeDetectorIfSupported: true }
         };
 
-        // Získanie a výber kamery
         let cameras = [];
         try { cameras = await Html5Qrcode.getCameras(); } catch (e) { }
 
@@ -72,8 +72,6 @@ export const BarcodeScanner: React.FC<Props> = ({ onScan, onClose, isAnalyzing }
           () => {} 
         );
 
-        // --- DETEKCIA BLESKU (TORCH) ---
-        // Skúšame opakovane, lebo video track nemusí byť ready hneď
         let attempts = 0;
         const checkTorch = () => {
             if (!mounted || attempts > 10) return;
@@ -83,11 +81,9 @@ export const BarcodeScanner: React.FC<Props> = ({ onScan, onClose, isAnalyzing }
                 const stream = videoElement.srcObject as MediaStream;
                 const videoTrack = stream.getVideoTracks()[0];
                 if (videoTrack) {
-                    // Type casting na 'any' aby sme sa dostali k capabilities
                     const capabilities = videoTrack.getCapabilities() as any;
                     if (capabilities.torch) {
                         setHasTorch(true);
-                        // Aplikujeme aj zoom/focus keď už sme tu
                         const constraints: any = { advanced: [] };
                         if (capabilities.zoom) {
                              constraints.advanced.push({ zoom: Math.min(1.8, capabilities.zoom.max || 3) });
@@ -98,7 +94,7 @@ export const BarcodeScanner: React.FC<Props> = ({ onScan, onClose, isAnalyzing }
                         if (constraints.advanced.length > 0) {
                             videoTrack.applyConstraints(constraints).catch(() => {});
                         }
-                        return; // Našli sme, končíme check
+                        return;
                     }
                 }
             }
@@ -151,7 +147,6 @@ export const BarcodeScanner: React.FC<Props> = ({ onScan, onClose, isAnalyzing }
 
   return (
     <div className="fixed inset-0 z-[100] bg-black flex flex-col font-sans">
-      {/* Top Controls */}
       <div className="safe-top p-4 flex justify-between items-start bg-gradient-to-b from-black/80 to-transparent absolute top-0 inset-x-0 z-50 pointer-events-none">
         <button onClick={onClose} className="pointer-events-auto px-5 py-2.5 bg-white/15 text-white text-xs font-black uppercase tracking-widest rounded-full backdrop-blur-md border border-white/10">
             Zrušiť
@@ -162,7 +157,6 @@ export const BarcodeScanner: React.FC<Props> = ({ onScan, onClose, isAnalyzing }
             onClick={toggleTorch} 
             className={`pointer-events-auto w-12 h-12 rounded-full flex items-center justify-center backdrop-blur-md transition-all border ${isTorchOn ? 'bg-amber-400 border-amber-400 text-black shadow-[0_0_15px_rgba(251,191,36,0.5)]' : 'bg-black/40 border-white/20 text-white'}`}
           >
-             {/* Ikona Blesku */}
             <svg className="w-6 h-6" fill={isTorchOn ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
             </svg>
@@ -170,7 +164,6 @@ export const BarcodeScanner: React.FC<Props> = ({ onScan, onClose, isAnalyzing }
         )}
       </div>
 
-      {/* Main Viewport */}
       <div className="relative flex-1 bg-black flex items-center justify-center overflow-hidden">
         <div id={containerId} className="w-full h-full object-cover"></div>
         

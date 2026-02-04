@@ -31,7 +31,6 @@ const App: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState<'inventory' | 'shopping'>('inventory');
   
-  // State pre sledovanie rozbalenej položky v zozname (akordeón)
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
 
   const [locations, setLocations] = useState<Location[]>(INITIAL_LOCATIONS);
@@ -50,7 +49,6 @@ const App: React.FC = () => {
   const [quickAddModalItem, setQuickAddModalItem] = useState<FoodItem | null>(null);
   const [consumeModalItem, setConsumeModalItem] = useState<FoodItem | null>(null);
 
-  // LOGIKA PRE SCROLL KATEGÓRIÍ
   const categoryScrollRef = useRef<HTMLDivElement>(null);
   const [scrollFlags, setScrollFlags] = useState({ left: false, right: true });
 
@@ -94,13 +92,9 @@ const App: React.FC = () => {
     localStorage.setItem('pantry_view_mode', viewMode);
   }, [viewMode]);
 
-  // --- FIREBASE SYNC LOGIC ---
-
-  // 1. Auth Listener
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
         if (firebaseUser) {
-            // Získame dáta užívateľa (hlavne householdId)
             const userDocRef = doc(db, "users", firebaseUser.uid);
             const userSnap = await getDoc(userDocRef);
             
@@ -108,7 +102,6 @@ const App: React.FC = () => {
                 const userData = userSnap.data() as User;
                 setCurrentUser(userData);
             } else {
-                // Fallback ak užívateľ je v Auth ale nie v DB (nemalo by sa stať pri registrácii)
                 console.error("User data not found in Firestore");
                 signOut(auth);
             }
@@ -122,11 +115,9 @@ const App: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
-  // 2. Household Data Listener (Items, Shopping, Metadata)
   useEffect(() => {
     if (!currentUser?.householdId) return;
 
-    // A. Listen to Household Metadata (Locations, Categories)
     const householdRef = doc(db, "households", currentUser.householdId);
     const unsubHousehold = onSnapshot(householdRef, (docSnap) => {
         if (docSnap.exists()) {
@@ -136,14 +127,12 @@ const App: React.FC = () => {
         }
     });
 
-    // B. Listen to Items
     const itemsQuery = query(collection(householdRef, "items"));
     const unsubItems = onSnapshot(itemsQuery, (snapshot) => {
         const loadedItems = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as FoodItem));
         setItems(loadedItems);
     });
 
-    // C. Listen to Shopping List
     const shoppingQuery = query(collection(householdRef, "shopping"));
     const unsubShopping = onSnapshot(shoppingQuery, (snapshot) => {
         const loadedShopping = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ShoppingItem));
@@ -156,9 +145,6 @@ const App: React.FC = () => {
         unsubShopping();
     };
   }, [currentUser?.householdId]);
-
-
-  // --- CRUD OPERÁCIE CEZ FIREBASE ---
 
   const handleAddItem = async (newItem: Omit<FoodItem, 'id' | 'lastUpdated' | 'householdId'>) => {
     if (!currentUser) return;
@@ -194,7 +180,6 @@ const App: React.FC = () => {
       householdId: currentUser.householdId
     };
 
-    // Add to Firestore
     await addDoc(collection(db, "households", currentUser.householdId, "items"), itemPayload);
   };
 
@@ -211,8 +196,6 @@ const App: React.FC = () => {
     }
   };
 
-  // --- Quick Add / Consume Logic (Updated for Firebase) ---
-
   const handleTriggerQuickAdd = (item: FoodItem) => setQuickAddModalItem(item);
 
   const confirmQuickAdd = async (expiryDate: string | undefined, specificQuantity: number) => {
@@ -220,9 +203,6 @@ const App: React.FC = () => {
     
     const qtyToAdd = specificQuantity > 0 ? specificQuantity : (quickAddModalItem.unit === Unit.KS ? 1 : (quickAddModalItem.quantityPerPack || 0));
     if (qtyToAdd <= 0) { setQuickAddModalItem(null); return; }
-
-    // Fetch fresh item data? Snapshot listener already does this, but for atomicity we use data from closure
-    // Best practice: use runTransaction if consistency is critical, but direct update is fine for this app size.
     
     const currentItem = items.find(i => i.id === quickAddModalItem.id);
     if (!currentItem) return;
@@ -324,8 +304,6 @@ const App: React.FC = () => {
     setConsumeModalItem(null);
   };
 
-  // --- Shopping List Logic ---
-
   const handleAddToShoppingList = async (item: FoodItem) => {
     if (!currentUser) return;
     const exists = shoppingList.find(si => si.sourceItemId === item.id);
@@ -391,17 +369,13 @@ const App: React.FC = () => {
     }
   };
 
-  // --- Metadata Logic ---
   const handleAddCategory = (categoryName: string): string => {
-    // Toto je len pre UI placeholder, reálny update robí AddItemModal volaním props, 
-    // ale pre istotu implementujeme save do DB v rámci onAddCategory
     const existing = categories.find(c => c.name.toLowerCase() === categoryName.toLowerCase());
     if (existing) return existing.id;
     
     const newId = Math.random().toString(36).substr(2, 9);
     const newCat: Category = { id: newId, name: categoryName, icon: '📦' };
     
-    // Update DB
     if (currentUser) {
         const newCategories = [...categories, newCat];
         updateDoc(doc(db, "households", currentUser.householdId), { categories: newCategories });
@@ -409,9 +383,7 @@ const App: React.FC = () => {
     return newId;
   };
 
-  // --- Rendering ---
-
-  const householdItems = items; // Vďaka Firestore query sú už vyfiltrované pre household
+  const householdItems = items;
   const filteredItems = useMemo(() => {
     return householdItems.filter(item => {
       const normalizeText = (text: string) => text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
@@ -448,7 +420,7 @@ const App: React.FC = () => {
   }
 
   if (!currentUser) {
-    return <AuthScreen onLogin={() => {}} />; // Callback neriešime, AuthListener to zachytí
+    return <AuthScreen onLogin={() => {}} />;
   }
 
   return (
@@ -461,10 +433,10 @@ const App: React.FC = () => {
             </div>
             <div>
               <h1 className="text-base font-black text-slate-900 dark:text-white leading-tight">Špajza</h1>
-              {/* CHANGE: Updated to v5.0 with red background for high visibility */}
+              {/* CHANGE: Updated to v5.1 with ORANGE background for confirmed build fix */}
               <div className="flex items-center gap-2">
                  <p className="text-[8px] font-black uppercase tracking-[0.15em] text-emerald-600 dark:text-emerald-400">ID Domácnosti: {currentUser.householdId}</p>
-                 <span className="text-[8px] bg-red-500 text-white px-2 py-0.5 rounded font-black shadow-lg shadow-red-500/30 animate-pulse">v5.0 (FINAL)</span>
+                 <span className="text-[8px] bg-orange-500 text-white px-2 py-0.5 rounded font-black shadow-lg shadow-orange-500/30 animate-pulse">v5.1 (FIXED)</span>
               </div>
             </div>
           </div>

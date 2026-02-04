@@ -1,5 +1,8 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Location, Category, User } from '../types';
+import { auth } from '../firebase';
+import { signOut } from 'firebase/auth';
 
 interface Props {
   isOpen: boolean;
@@ -20,7 +23,6 @@ export const ManageMetadataModal: React.FC<Props> = ({
   const [newIcon, setNewIcon] = useState('📦');
   const [joinCode, setJoinCode] = useState('');
 
-  // Refs pre automatické scrollovanie
   const tabsContainerRef = useRef<HTMLDivElement>(null);
   const tabsRef = useRef<{ [key: string]: HTMLButtonElement | null }>({
     locations: null,
@@ -28,7 +30,6 @@ export const ManageMetadataModal: React.FC<Props> = ({
     household: null
   });
 
-  // Efekt pre automatické centrovanie aktívnej záložky
   useEffect(() => {
     if (isOpen && tabsContainerRef.current && tabsRef.current[activeSubTab]) {
       const container = tabsContainerRef.current;
@@ -38,31 +39,31 @@ export const ManageMetadataModal: React.FC<Props> = ({
         const containerWidth = container.offsetWidth;
         const tabWidth = tab.offsetWidth;
         const tabLeft = tab.offsetLeft;
-
-        // Výpočet pozície tak, aby bol tab v strede
         const scrollPosition = tabLeft - (containerWidth / 2) + (tabWidth / 2);
-
-        container.scrollTo({
-          left: scrollPosition,
-          behavior: 'smooth'
-        });
+        container.scrollTo({ left: scrollPosition, behavior: 'smooth' });
       }
     }
   }, [activeSubTab, isOpen]);
 
   if (!isOpen) return null;
 
+  const handleLogout = async () => {
+      if(confirm('Naozaj sa chcete odhlásiť?')) {
+          await signOut(auth);
+          onClose();
+      }
+  };
+
   const handleExport = () => {
     const data = {
-      items: JSON.parse(localStorage.getItem('pantry_items') || '[]'),
+      items: JSON.parse(localStorage.getItem('pantry_items') || '[]'), // Fallback pre local storage, inak berie z props v App
       locations: locations,
       categories: categories,
-      users: JSON.parse(localStorage.getItem('pantry_users') || '[]'),
-      shopping: JSON.parse(localStorage.getItem('pantry_shopping') || '[]')
+      // Exportujeme len štruktúru, dáta sú v DB
+      generatedAt: new Date().toISOString()
     };
-    const dataStr = JSON.stringify(data);
+    const dataStr = JSON.stringify(data, null, 2);
     const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
-    
     const exportFileDefaultName = `spajza_zaloha_${new Date().toISOString().split('T')[0]}.json`;
     
     const linkElement = document.createElement('a');
@@ -79,18 +80,13 @@ export const ManageMetadataModal: React.FC<Props> = ({
     reader.onload = (event) => {
       try {
         const importedData = JSON.parse(event.target?.result as string);
-        if (confirm('Importovaním dát sa prepíšu vaše aktuálne nastavenia v tomto zariadení. Pokračovať?')) {
-          if (importedData.items) localStorage.setItem('pantry_items', JSON.stringify(importedData.items));
+        if (confirm('Import prepíše lokálne kategórie a lokality. Pokračovať?')) {
           if (importedData.locations) setLocations(importedData.locations);
           if (importedData.categories) setCategories(importedData.categories);
-          if (importedData.users) localStorage.setItem('pantry_users', JSON.stringify(importedData.users));
-          if (importedData.shopping) localStorage.setItem('pantry_shopping', JSON.stringify(importedData.shopping));
-          
-          alert('Dáta boli úspešne importované! Aplikácia sa teraz obnoví.');
-          window.location.reload();
+          alert('Nastavenia importované.');
         }
       } catch (err) {
-        alert('Chyba pri čítaní súboru. Uistite sa, že ide o platnú zálohu Moja Špajza.');
+        alert('Chyba pri čítaní súboru.');
       }
     };
     reader.readAsText(file);
@@ -107,21 +103,20 @@ export const ManageMetadataModal: React.FC<Props> = ({
     };
 
     if (activeSubTab === 'locations') {
-      setLocations(prev => [...prev, newItem]);
+      setLocations([...locations, newItem]);
     } else {
-      setCategories(prev => [...prev, newItem]);
+      setCategories([...categories, newItem]);
     }
-
     setNewName('');
     setNewIcon('📦');
   };
 
   const handleDelete = (id: string, type: 'locations' | 'categories') => {
-    if (confirm('Naozaj chcete odstrániť túto položku? Položky v inventári, ktoré ju používajú, môžu zobraziť predvolenú hodnotu.')) {
+    if (confirm('Odstrániť položku?')) {
       if (type === 'locations') {
-        setLocations(prev => prev.filter(l => l.id !== id));
+        setLocations(locations.filter(l => l.id !== id));
       } else {
-        setCategories(prev => prev.filter(c => c.id !== id));
+        setCategories(categories.filter(c => c.id !== id));
       }
     }
   };
@@ -129,9 +124,9 @@ export const ManageMetadataModal: React.FC<Props> = ({
   const handleJoinHousehold = (e: React.FormEvent) => {
     e.preventDefault();
     if (currentUser && joinCode.trim().length >= 4) {
-      if (confirm(`Naozaj sa chcete pripojiť k domácnosti ${joinCode.toUpperCase()}? Vaše aktuálne zásoby budú nahradené zásobami novej domácnosti.`)) {
+      if (confirm(`Pripojiť sa k domácnosti ${joinCode.toUpperCase()}?`)) {
         onUpdateUser({ ...currentUser, householdId: joinCode.toUpperCase() });
-        alert('Úspešne pripojené k novej domácnosti!');
+        alert('Požiadavka odoslaná. Dáta sa synchronizujú.');
         onClose();
       }
     }
@@ -166,53 +161,69 @@ export const ManageMetadataModal: React.FC<Props> = ({
           </button>
         </div>
 
-        {/* Navigation Tabs - Auto Scroll Container */}
+        {/* Navigation Tabs */}
         <div className="bg-slate-100 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-800 py-4 shrink-0 relative">
-           {/* Fade effect on sides to indicate scroll */}
-           <div className="absolute left-0 top-0 bottom-0 w-4 bg-gradient-to-r from-slate-100 dark:from-slate-900 to-transparent z-10 pointer-events-none"></div>
-           <div className="absolute right-0 top-0 bottom-0 w-4 bg-gradient-to-l from-slate-100 dark:from-slate-900 to-transparent z-10 pointer-events-none"></div>
-           
-           <div 
-             ref={tabsContainerRef}
-             className="flex gap-2 overflow-x-auto no-scrollbar px-4 items-center snap-x"
-           >
+           <div ref={tabsContainerRef} className="flex gap-2 overflow-x-auto no-scrollbar px-4 items-center snap-x">
             <TabButton id="locations" label="Lokality" active={activeSubTab === 'locations'} />
             <TabButton id="categories" label="Kategórie" active={activeSubTab === 'categories'} />
-            <TabButton id="household" label="Synchronizácia" active={activeSubTab === 'household'} />
+            <TabButton id="household" label="Účet" active={activeSubTab === 'household'} />
            </div>
         </div>
 
-        {/* Content Area - Scrollable */}
+        {/* Content Area */}
         <div className="flex-1 overflow-y-auto no-scrollbar p-6 relative">
             {activeSubTab === 'household' ? (
               <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300 pb-4">
-                <div className="p-6 bg-slate-50 dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700">
-                  <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Záloha a prenos dát</h4>
-                  <div className="grid grid-cols-1 gap-3">
-                    <button 
-                      onClick={handleExport}
-                      className="w-full py-4 bg-white dark:bg-slate-700 text-slate-900 dark:text-white font-black rounded-2xl text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 border border-slate-200 dark:border-slate-600 shadow-sm active:scale-95 transition-transform"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                      Exportovať do súboru
-                    </button>
-                    
-                    <label className="w-full py-4 bg-emerald-600 text-white font-black rounded-2xl text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 cursor-pointer active:scale-95 transition-transform">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
-                      Importovať zo súboru
-                      <input type="file" accept=".json" onChange={handleImport} className="hidden" />
-                    </label>
+                
+                <div className="bg-slate-50 dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 text-center">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Váš kód domácnosti</p>
+                  <div className="text-4xl font-black text-emerald-600 dark:text-emerald-400 tracking-[0.2em] mb-2 selection:bg-emerald-200">
+                    {currentUser?.householdId}
                   </div>
-                  <p className="text-[9px] font-bold text-slate-400 mt-4 text-center leading-relaxed">
-                    Exportujte dáta z prvého mobilu a importujte ich v druhom, aby ste mali rovnaký účet a zásoby.
+                  <p className="text-[9px] font-bold text-slate-500 dark:text-slate-400">
+                      Tento kód zadajte na druhom zariadení pre zdieľanie zásob.
                   </p>
                 </div>
 
-                <div className="bg-slate-50 dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 text-center">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Zdieľací kód domácnosti</p>
-                  <div className="text-4xl font-black text-emerald-600 dark:text-emerald-400 tracking-[0.2em]">
-                    {currentUser?.householdId}
+                <div className="p-6 bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-700">
+                  <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Pripojiť sa k inej domácnosti</h4>
+                  <form onSubmit={handleJoinHousehold} className="space-y-3">
+                      <input 
+                        type="text" 
+                        value={joinCode}
+                        onChange={e => setJoinCode(e.target.value.toUpperCase())}
+                        placeholder="ZADAJTE KÓD (NAPR. XY92)"
+                        className="w-full px-5 py-4 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white rounded-2xl outline-none font-black text-center text-lg tracking-widest uppercase focus:ring-2 focus:ring-emerald-500"
+                        maxLength={6}
+                      />
+                      <button 
+                        type="submit"
+                        disabled={joinCode.length < 4}
+                        className="w-full py-4 bg-slate-900 dark:bg-white hover:bg-emerald-600 dark:hover:bg-emerald-400 disabled:bg-slate-200 dark:disabled:bg-slate-800 disabled:text-slate-400 text-white dark:text-slate-900 font-black rounded-2xl transition-all active:scale-95 uppercase text-[10px] tracking-widest"
+                      >
+                        Synchronizovať
+                      </button>
+                  </form>
+                </div>
+
+                <div className="p-6 bg-slate-50 dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700">
+                  <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Záloha nastavení</h4>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button onClick={handleExport} className="py-3 bg-white dark:bg-slate-700 rounded-xl text-[10px] font-bold uppercase tracking-widest border border-slate-200 dark:border-slate-600">Export</button>
+                    <label className="py-3 bg-white dark:bg-slate-700 rounded-xl text-[10px] font-bold uppercase tracking-widest border border-slate-200 dark:border-slate-600 text-center cursor-pointer">
+                        Import
+                        <input type="file" accept=".json" onChange={handleImport} className="hidden" />
+                    </label>
                   </div>
+                </div>
+                
+                <div className="pt-4 border-t border-slate-100 dark:border-slate-800">
+                    <button 
+                        onClick={handleLogout}
+                        className="w-full py-4 text-red-500 font-black rounded-2xl text-[10px] uppercase tracking-widest hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                    >
+                        Odhlásiť sa ({currentUser?.email})
+                    </button>
                 </div>
               </div>
             ) : (
@@ -237,33 +248,15 @@ export const ManageMetadataModal: React.FC<Props> = ({
             )}
         </div>
 
-        {/* Footer Form - Fixed at Bottom for Locations & Categories */}
         {activeSubTab !== 'household' && (
           <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0 z-10">
             <form onSubmit={handleAdd} className="p-4 bg-emerald-50 dark:bg-emerald-950/20 rounded-3xl border-2 border-emerald-100 dark:border-emerald-900/50">
                 <h4 className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest mb-3">Pridať novú {activeSubTab === 'locations' ? 'lokalitu' : 'kategóriu'}</h4>
                 <div className="flex gap-3">
-                  <input 
-                    type="text" 
-                    value={newIcon}
-                    onChange={e => setNewIcon(e.target.value)}
-                    placeholder="🏠"
-                    className="w-14 px-2 py-3 bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-none rounded-2xl text-center font-bold outline-none focus:ring-2 focus:ring-emerald-500 shadow-sm"
-                  />
-                  <input 
-                    type="text" 
-                    value={newName}
-                    onChange={e => setNewName(e.target.value)}
-                    placeholder="Názov..."
-                    className="flex-1 min-w-0 px-5 py-3 bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-none rounded-2xl font-bold outline-none focus:ring-2 focus:ring-emerald-500 shadow-sm"
-                  />
+                  <input type="text" value={newIcon} onChange={e => setNewIcon(e.target.value)} placeholder="🏠" className="w-14 px-2 py-3 bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-none rounded-2xl text-center font-bold outline-none focus:ring-2 focus:ring-emerald-500 shadow-sm" />
+                  <input type="text" value={newName} onChange={e => setNewName(e.target.value)} placeholder="Názov..." className="flex-1 min-w-0 px-5 py-3 bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-none rounded-2xl font-bold outline-none focus:ring-2 focus:ring-emerald-500 shadow-sm" />
                 </div>
-                <button 
-                  type="submit"
-                  className="w-full mt-3 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-2xl transition-all active:scale-95 uppercase text-[10px] tracking-widest shadow-lg shadow-emerald-600/20"
-                >
-                  Potvrdiť
-                </button>
+                <button type="submit" className="w-full mt-3 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-2xl transition-all active:scale-95 uppercase text-[10px] tracking-widest shadow-lg shadow-emerald-600/20">Potvrdiť</button>
             </form>
           </div>
         )}
