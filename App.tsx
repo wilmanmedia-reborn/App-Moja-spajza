@@ -179,18 +179,25 @@ const App: React.FC = () => {
         }
     }
 
+    // Vytvorenie batchov
     for (let i = 0; i < countToAdd; i++) {
         initialBatches.push({
             id: Math.random().toString(36).substr(2, 9) + i,
             quantity: quantityPerBatch,
-            expiryDate: newItem.expiryDate,
+            expiryDate: newItem.expiryDate || undefined, // Zabezpečíme undefined ak je prázdne string
             addedDate: Date.now()
         });
     }
 
+    // OPRAVA PRE DATABÁZU: Firestore neberie 'undefined', musíme poslať null
     const itemPayload = {
       ...newItem,
-      batches: initialBatches,
+      quantityPerPack: newItem.quantityPerPack || null,
+      expiryDate: newItem.expiryDate || null,
+      batches: initialBatches.map(b => ({
+          ...b,
+          expiryDate: b.expiryDate || null
+      })),
       lastUpdated: Date.now(),
       householdId: currentUser.householdId
     };
@@ -207,7 +214,23 @@ const App: React.FC = () => {
   const handleUpdateItem = async (id: string, updates: Partial<FoodItem>) => {
     if (!currentUser) return;
     const itemRef = doc(db, "households", currentUser.householdId, "items", id);
-    await updateDoc(itemRef, { ...updates, lastUpdated: Date.now() });
+    
+    // Sanitizácia updates pre Firestore (undefined -> null)
+    const sanitizedUpdates: any = { ...updates, lastUpdated: Date.now() };
+    Object.keys(sanitizedUpdates).forEach(key => {
+        if (sanitizedUpdates[key] === undefined) {
+            sanitizedUpdates[key] = null;
+        }
+    });
+
+    if (sanitizedUpdates.batches) {
+        sanitizedUpdates.batches = sanitizedUpdates.batches.map((b: any) => ({
+            ...b,
+            expiryDate: b.expiryDate || null
+        }));
+    }
+
+    await updateDoc(itemRef, sanitizedUpdates);
   };
 
   const handleDeleteItem = async (id: string) => {
