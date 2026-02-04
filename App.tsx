@@ -433,10 +433,10 @@ const App: React.FC = () => {
             </div>
             <div>
               <h1 className="text-base font-black text-slate-900 dark:text-white leading-tight">Špajza</h1>
-              {/* CHANGE: Updated to v5.1 with ORANGE background for confirmed build fix */}
+              {/* CHANGE: Updated to v5.2 with BLUE background for confirmed build fix */}
               <div className="flex items-center gap-2">
                  <p className="text-[8px] font-black uppercase tracking-[0.15em] text-emerald-600 dark:text-emerald-400">ID Domácnosti: {currentUser.householdId}</p>
-                 <span className="text-[8px] bg-orange-500 text-white px-2 py-0.5 rounded font-black shadow-lg shadow-orange-500/30 animate-pulse">v5.1 (FIXED)</span>
+                 <span className="text-[8px] bg-blue-600 text-white px-2 py-0.5 rounded font-black shadow-lg shadow-blue-500/30 animate-pulse">v5.2 (Build Fix)</span>
               </div>
             </div>
           </div>
