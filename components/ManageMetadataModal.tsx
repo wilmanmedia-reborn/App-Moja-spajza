@@ -106,6 +106,22 @@ export const ManageMetadataModal: React.FC<Props> = ({
     }
   };
 
+  const handleDisconnectHousehold = () => {
+    if (!currentUser) return;
+    
+    const message = 
+      "⚠️ POZOR: NAOZAJ SA CHCETE ODPOJIŤ?\n\n" +
+      "1. Stratíte prístup k aktuálnym zásobám tejto domácnosti (zostanú zachované pre ostatných členov).\n" +
+      "2. Vytvorí sa pre vás nová, úplne prázdna domácnosť s novým kódom.\n\n" +
+      "Chcete pokračovať a začať nanovo?";
+
+    if (confirm(message)) {
+      const newHouseholdId = Math.random().toString(36).substr(2, 6).toUpperCase();
+      onUpdateUser({ ...currentUser, householdId: newHouseholdId });
+      onClose();
+    }
+  };
+
   const TabButton = ({ id, label, active }: { id: 'locations' | 'categories' | 'household', label: string, active: boolean }) => (
     <button 
       ref={el => { tabsRef.current[id] = el; }}
@@ -156,14 +172,21 @@ export const ManageMetadataModal: React.FC<Props> = ({
             {activeSubTab === 'household' ? (
               <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300 pb-4">
                 
-                <div className="bg-slate-50 dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 text-center">
+                <div className="bg-slate-50 dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 text-center relative group">
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Váš kód domácnosti</p>
                   <div className="text-4xl font-black text-emerald-600 dark:text-emerald-400 tracking-[0.2em] mb-2 selection:bg-emerald-200">
                     {currentUser?.householdId}
                   </div>
-                  <p className="text-[9px] font-bold text-slate-500 dark:text-slate-400">
+                  <p className="text-[9px] font-bold text-slate-500 dark:text-slate-400 mb-4">
                       Tento kód zadajte na druhom zariadení (napr. manželkin mobil), aby ste zdieľali rovnakú špajzu.
                   </p>
+                  
+                  <button 
+                    onClick={handleDisconnectHousehold}
+                    className="mt-2 py-2 px-4 bg-white dark:bg-slate-900 border border-red-200 dark:border-red-900/30 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all hover:scale-105"
+                  >
+                    Odpojiť sa a vytvoriť novú
+                  </button>
                 </div>
 
                 <div className="p-6 bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-700">
