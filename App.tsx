@@ -118,10 +118,6 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!currentUser?.householdId) return;
 
-    // Reset items when switching household to avoid mixing data visually before load
-    // setItems([]); // Toto už robíme v onUpdateUser pre lepší UX
-    // setShoppingList([]);
-
     const householdRef = doc(db, "households", currentUser.householdId);
     
     // 1. Listen for Settings (Locations/Categories)
@@ -159,7 +155,7 @@ const App: React.FC = () => {
         unsubItems();
         unsubShopping();
     };
-  }, [currentUser?.householdId]); // DÔLEŽITÉ: Toto sa spustí vždy, keď sa zmení ID
+  }, [currentUser?.householdId]); 
 
   const handleAddItem = async (newItem: Omit<FoodItem, 'id' | 'lastUpdated' | 'householdId'>) => {
     if (!currentUser) return;
@@ -528,23 +524,17 @@ const App: React.FC = () => {
               </div>
             )}
 
-            {/* Controls Row */}
-            <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
-              <div className="flex gap-2 bg-white dark:bg-slate-900 p-1 rounded-2xl border border-slate-200 dark:border-slate-800 w-full sm:w-auto">
-                <button onClick={() => setViewMode('list')} className={`flex-1 sm:flex-none px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest ${viewMode === 'list' ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-md' : 'text-slate-400'}`}>Zoznam</button>
-                <button onClick={() => setViewMode('grid')} className={`flex-1 sm:flex-none px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest ${viewMode === 'grid' ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-md' : 'text-slate-400'}`}>Mriežka</button>
-              </div>
-              <div className="relative w-full sm:w-64 group">
+            {/* Search Bar - NOW FULL WIDTH (Removed view buttons from here) */}
+            <div className="mb-6 relative group">
                 <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none transition-colors group-focus-within:text-emerald-500">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                 </div>
-                <input type="text" placeholder="Hľadať..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className={`w-full pl-12 pr-12 py-3.5 rounded-2xl border font-bold text-sm outline-none transition-all ${searchTerm ? 'bg-emerald-50/50 dark:bg-emerald-900/10 border-emerald-500/50 text-emerald-900 dark:text-emerald-100' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20'}`}/>
+                <input type="text" placeholder="Hľadať produkt..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className={`w-full pl-12 pr-12 py-4 rounded-3xl border font-bold text-base outline-none transition-all ${searchTerm ? 'bg-emerald-50/50 dark:bg-emerald-900/10 border-emerald-500/50 text-emerald-900 dark:text-emerald-100' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10'}`}/>
                 {searchTerm && (
-                    <button onClick={() => setSearchTerm('')} className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 bg-slate-200 dark:bg-slate-700/50 text-slate-500 dark:text-slate-400 rounded-full hover:bg-red-100 hover:text-red-500 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition-all active:scale-90">
+                    <button onClick={() => setSearchTerm('')} className="absolute right-3 top-1/2 -translate-y-1/2 p-2 bg-slate-200 dark:bg-slate-700/50 text-slate-500 dark:text-slate-400 rounded-full hover:bg-red-100 hover:text-red-500 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition-all active:scale-90">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" /></svg>
                     </button>
                 )}
-              </div>
             </div>
 
             {/* Category Filter */}
@@ -563,6 +553,14 @@ const App: React.FC = () => {
                   </button>
                 ))}
               </div>
+            </div>
+
+            {/* View Mode Switcher - MOVED HERE (Below Categories) */}
+            <div className="flex justify-end mb-4">
+               <div className="flex gap-1 bg-white dark:bg-slate-900 p-1 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                  <button onClick={() => setViewMode('list')} className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === 'list' ? 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white' : 'text-slate-400 hover:text-slate-600'}`}>Zoznam</button>
+                  <button onClick={() => setViewMode('grid')} className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === 'grid' ? 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white' : 'text-slate-400 hover:text-slate-600'}`}>Mriežka</button>
+               </div>
             </div>
 
             {/* Inventory Grid/List */}

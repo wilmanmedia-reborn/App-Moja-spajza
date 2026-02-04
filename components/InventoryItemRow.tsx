@@ -6,8 +6,8 @@ interface Props {
   item: FoodItem;
   location?: Location;
   category?: Category;
-  isExpanded: boolean; // Nový prop: Riadené rodičom
-  onToggleExpand: () => void; // Nový prop: Funkcia na prepnutie stavu v rodičovi
+  isExpanded: boolean;
+  onToggleExpand: () => void;
   onUpdate: (id: string, updates: Partial<FoodItem>) => void;
   onDelete: (id: string) => void;
   onEdit: (item: FoodItem) => void;
@@ -17,12 +17,10 @@ interface Props {
 }
 
 export const InventoryItemRow: React.FC<Props> = ({ item, location, category, isExpanded, onToggleExpand, onDelete, onEdit, onAddToShoppingList, onQuickAdd, onConsume }) => {
-  // Lokálny state isExpanded odstránený - teraz je riadený cez props
   const rowRef = useRef<HTMLDivElement>(null);
   
   const percentage = (item.currentQuantity / item.totalQuantity) * 100;
   
-  // Počet balení sa počíta ako počet šarží
   const currentPacks = item.unit === Unit.KS 
     ? item.currentQuantity 
     : (item.batches?.length || 0);
@@ -41,14 +39,12 @@ export const InventoryItemRow: React.FC<Props> = ({ item, location, category, is
     ? Math.ceil((new Date(item.expiryDate).getTime() - Date.now()) / (86400000))
     : null;
 
-  // Efekt pre automatické scrollovanie po rozbalení (stále funguje, lebo sleduje prop isExpanded)
   useEffect(() => {
     if (isExpanded && rowRef.current) {
-      // Počkáme 300ms kým prebehne animácia "slide-in" (aby výpočet pozície bol presný)
       const timer = setTimeout(() => {
         rowRef.current?.scrollIntoView({ 
           behavior: 'smooth', 
-          block: 'center' // 'center' zabezpečí, že item nebude schovaný za spodným menu
+          block: 'center' 
         });
       }, 300);
       return () => clearTimeout(timer);
@@ -64,50 +60,66 @@ export const InventoryItemRow: React.FC<Props> = ({ item, location, category, is
       {/* Main Row Content - Clickable to expand */}
       <div 
         className="flex items-center p-4 sm:p-5 gap-3 sm:gap-4 cursor-pointer"
-        onClick={onToggleExpand} // Voláme funkciu z rodiča
+        onClick={onToggleExpand}
       >
-        {/* Category Icon with status ring */}
+        {/* Category Icon */}
         <div className={`hidden sm:flex w-12 h-12 rounded-2xl items-center justify-center text-xl shrink-0 relative p-1 transition-colors ${isRunningLow ? 'bg-amber-500/10' : 'bg-slate-100 dark:bg-slate-800'}`}>
           <div className={`absolute inset-0 rounded-2xl border-2 ${isRunningLow ? 'border-amber-500 animate-pulse' : 'border-transparent'}`}></div>
           {category?.icon}
         </div>
 
-        {/* Name & Location */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1.5">
-            <h3 className={`font-black text-sm sm:text-base leading-tight transition-colors line-clamp-2 break-words ${isRunningLow ? 'text-amber-700 dark:text-amber-400' : 'text-slate-900 dark:text-white'}`}>
-              {item.name}
-            </h3>
-            {item.isHomemade && (
-              <span className="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-[8px] font-black uppercase px-2 py-0.5 rounded-md shrink-0 self-start mt-0.5">domáce</span>
-            )}
-            {isRunningLow && (
-              <span className="bg-amber-500 text-white text-[8px] font-black uppercase px-2 py-0.5 rounded-md shrink-0 self-start mt-0.5">dochádza</span>
-            )}
-          </div>
-          <div className="flex items-center gap-3 text-[10px] text-slate-400 dark:text-slate-500 font-black uppercase tracking-widest truncate">
-            <span className="sm:hidden">{category?.icon}</span>
-            <span className="flex items-center gap-1">
-              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-              {location?.name}
-            </span>
-            {daysToExpiry !== null && (
-              <span className={`px-2 py-0.5 rounded-full flex items-center gap-1 ${daysToExpiry <= 7 ? 'bg-red-500 text-white' : 'bg-slate-100 dark:bg-slate-800'}`}>
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                {daysToExpiry}d
-              </span>
-            )}
+        {/* Text Content - REDESIGNED */}
+        <div className="flex-1 min-w-0 flex flex-col justify-center">
+          
+          {/* 1. Riadok: Názov na celú šírku */}
+          <h3 className={`font-black text-[15px] leading-tight transition-colors break-words mb-1.5 pr-2 ${isRunningLow ? 'text-amber-700 dark:text-amber-400' : 'text-slate-900 dark:text-white'}`}>
+            {item.name}
+          </h3>
+
+          {/* 2. Riadok: Odznaky a Info */}
+          <div className="flex flex-wrap items-center gap-2">
+             
+             {/* Badges - moved below title */}
+             {(item.isHomemade || isRunningLow) && (
+                <div className="flex gap-1">
+                  {item.isHomemade && (
+                    <span className="bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 text-[9px] font-black uppercase px-2 py-0.5 rounded-md whitespace-nowrap">domáce</span>
+                  )}
+                  {isRunningLow && (
+                    <span className="bg-amber-500 text-white text-[9px] font-black uppercase px-2 py-0.5 rounded-md whitespace-nowrap shadow-sm shadow-amber-500/20">dochádza</span>
+                  )}
+                </div>
+             )}
+
+             {/* Metadata Divider if badges exist */}
+             {(item.isHomemade || isRunningLow) && <span className="text-slate-300 dark:text-slate-700">|</span>}
+
+             {/* Location & Expiry */}
+             <div className="flex items-center gap-3 text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider truncate">
+                <span className="flex items-center gap-1 truncate">
+                  <span className="sm:hidden text-base leading-none relative -top-[1px] mr-0.5">{category?.icon}</span>
+                  {location?.name}
+                </span>
+                
+                {daysToExpiry !== null && (
+                  <span className={`px-2 py-0.5 rounded-md flex items-center gap-1 shrink-0 ${daysToExpiry <= 7 ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400' : 'bg-slate-100 dark:bg-slate-800'}`}>
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    {daysToExpiry}d
+                  </span>
+                )}
+             </div>
           </div>
         </div>
 
         {/* Progress & Quantity */}
-        <div className="flex flex-col items-end gap-1.5 shrink-0 px-2 sm:px-4">
-          <div className="flex items-center gap-2">
-             <span className={`text-base sm:text-xl font-black ${percentage <= 25 ? 'text-amber-600' : 'text-slate-900 dark:text-white'}`}>
-              {currentPacks} <span className="text-[10px] text-slate-400">ks</span>
+        <div className="flex flex-col items-end gap-1.5 shrink-0 px-1 sm:px-4">
+          <div className="flex items-center gap-1">
+             <span className={`text-lg sm:text-xl font-black ${percentage <= 25 ? 'text-amber-600' : 'text-slate-900 dark:text-white'}`}>
+              {currentPacks}
             </span>
+            <span className="text-[10px] font-bold text-slate-400 uppercase relative top-0.5">ks</span>
           </div>
-          <div className="w-16 sm:w-28 h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+          <div className="w-16 sm:w-28 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
             <div 
               className={`h-full rounded-full transition-all duration-500 ${getStatusColor()}`}
               style={{ width: `${Math.min(100, percentage)}%` }}
@@ -115,7 +127,7 @@ export const InventoryItemRow: React.FC<Props> = ({ item, location, category, is
           </div>
         </div>
 
-        {/* Quick Actions - Always visible */}
+        {/* Quick Actions */}
         <div className="flex items-center gap-1.5 shrink-0 ml-1">
           <button 
             onClick={(e) => {
@@ -136,7 +148,7 @@ export const InventoryItemRow: React.FC<Props> = ({ item, location, category, is
             <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
           </button>
           
-          <div className={`transition-transform duration-300 ml-1 ${isExpanded ? 'rotate-180' : 'rotate-0'}`}>
+          <div className={`transition-transform duration-300 ml-1 hidden sm:block ${isExpanded ? 'rotate-180' : 'rotate-0'}`}>
             <svg className="w-5 h-5 text-slate-300 dark:text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7" /></svg>
           </div>
         </div>
