@@ -118,21 +118,36 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!currentUser?.householdId) return;
 
+    // Reset items when switching household to avoid mixing data visually before load
+    setItems([]);
+    setShoppingList([]);
+
     const householdRef = doc(db, "households", currentUser.householdId);
+    
+    // 1. Listen for Settings (Locations/Categories)
     const unsubHousehold = onSnapshot(householdRef, (docSnap) => {
         if (docSnap.exists()) {
             const data = docSnap.data();
             if (data.locations) setLocations(data.locations);
             if (data.categories) setCategories(data.categories);
+        } else {
+            // Ak domácnosť neexistuje (nový kód), vytvoríme ju s default dátami
+            setDoc(householdRef, {
+                ownerId: currentUser.id,
+                locations: INITIAL_LOCATIONS,
+                categories: INITIAL_CATEGORIES
+            });
         }
     });
 
+    // 2. Listen for Inventory Items
     const itemsQuery = query(collection(householdRef, "items"));
     const unsubItems = onSnapshot(itemsQuery, (snapshot) => {
         const loadedItems = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as FoodItem));
         setItems(loadedItems);
     });
 
+    // 3. Listen for Shopping List
     const shoppingQuery = query(collection(householdRef, "shopping"));
     const unsubShopping = onSnapshot(shoppingQuery, (snapshot) => {
         const loadedShopping = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ShoppingItem));
@@ -144,7 +159,7 @@ const App: React.FC = () => {
         unsubItems();
         unsubShopping();
     };
-  }, [currentUser?.householdId]);
+  }, [currentUser?.householdId]); // DÔLEŽITÉ: Toto sa spustí vždy, keď sa zmení ID
 
   const handleAddItem = async (newItem: Omit<FoodItem, 'id' | 'lastUpdated' | 'householdId'>) => {
     if (!currentUser) return;
@@ -433,10 +448,9 @@ const App: React.FC = () => {
             </div>
             <div>
               <h1 className="text-base font-black text-slate-900 dark:text-white leading-tight">Špajza</h1>
-              {/* CHANGE: Updated to v5.2 with BLUE background for confirmed build fix */}
               <div className="flex items-center gap-2">
                  <p className="text-[8px] font-black uppercase tracking-[0.15em] text-emerald-600 dark:text-emerald-400">ID Domácnosti: {currentUser.householdId}</p>
-                 <span className="text-[8px] bg-blue-600 text-white px-2 py-0.5 rounded font-black shadow-lg shadow-blue-500/30 animate-pulse">v5.2 (Build Fix)</span>
+                 <span className="text-[8px] bg-emerald-600 text-white px-2 py-0.5 rounded font-black shadow-lg shadow-emerald-500/30">v5.3 Sync Fix</span>
               </div>
             </div>
           </div>
@@ -571,7 +585,10 @@ const App: React.FC = () => {
         currentUser={currentUser} 
         onUpdateUser={(updatedUser) => {
             if (updatedUser.householdId !== currentUser.householdId) {
+                // 1. Zmeníme údaje vo Firestore
                 updateDoc(doc(db, "users", currentUser.id), { householdId: updatedUser.householdId });
+                // 2. OKAMŽITÁ ZMENA LOKÁLNEHO STAVU - TOTO SPÔSOBÍ PREPNUTIE LISTENEROV
+                setCurrentUser(updatedUser);
             }
         }} 
       />
